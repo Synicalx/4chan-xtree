@@ -58,6 +58,9 @@ export default class Post {
   declare isRebuilt?:     boolean;
   declare isFetchedQuote: boolean | undefined;
   declare isClone:        boolean | undefined;
+  declare isTreeClone?:   boolean;
+  declare treeParent?:    Post;
+  declare treeChildren?:  Post[];
   declare quotes:         string[];
   declare file:           ReturnType<Post['parseFile']>;
   declare files:          ReturnType<Post['parseFile']>[];
@@ -200,6 +203,7 @@ export default class Post {
       uniqueIDRoot: any,
       uniqueID:     any,
       stub?:        HTMLElement,
+      threadContainer?: HTMLElement,
     };
 
     const nodes: Node & Partial<Record<keyof Post['info'], HTMLElement>> = {
@@ -491,8 +495,8 @@ export class PostClone extends Post {
     }
     PostClone.suffix++;
 
-    // Remove inlined posts inside of this post.
-    for (var inline of $$('.inline', root)) {
+    // Remove inlined posts and stubs inside of this post.
+    for (var inline of $$('.inline, .stub', root)) {
       $.rm(inline);
     }
     for (var inlined of $$('.inlined', root)) {

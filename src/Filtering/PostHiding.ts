@@ -1,6 +1,7 @@
 import Callbacks from "../classes/Callbacks";
 import DataBoard from "../classes/DataBoard";
 import type Post from "../classes/Post";
+import type { PostClone } from "../classes/Post";
 import BoardConfig from "../General/BoardConfig";
 import Get from "../General/Get";
 import UI from "../General/UI";
@@ -10,6 +11,7 @@ import $ from "../platform/$";
 import { dict } from "../platform/helpers";
 import Recursive from "./Recursive";
 import Icon from '../Icons/icon';
+import QuoteThreading from "../Quotelinks/QuoteThreading";
 
 /** Used in DataBoards data */
 interface HideOptions {
@@ -25,9 +27,9 @@ var PostHiding = {
   posterIdDb: undefined as DataBoard,
 
   init() {
-    if (!['index', 'thread'].includes(g.VIEW) || (!Conf['Reply Hiding Buttons'] && !(Conf['Menu'] && Conf['Reply Hiding Link']))) { return; }
+    if (!['index', 'thread'].includes(g.VIEW) || (!Conf['Reply Hiding Buttons'] && !Conf['Quote Threading'] && !(Conf['Menu'] && Conf['Reply Hiding Link']))) { return; }
 
-    if (Conf['Reply Hiding Buttons']) {
+    if (Conf['Reply Hiding Buttons'] || Conf['Quote Threading']) {
       $.addClass(doc, "reply-hide");
     }
 
@@ -44,7 +46,18 @@ var PostHiding = {
   },
 
   node(this: Post) {
-    if (!this.isReply || this.isClone || this.isFetchedQuote) return;
+    if (!this.isReply || this.isFetchedQuote) return;
+    if (this.isClone) {
+      if (!this.isTreeClone) return;
+      const hideBtn = $('.hide-reply-button', this.nodes.root);
+      if (hideBtn) {
+        $.on(hideBtn, 'click', PostHiding.toggle);
+      }
+      if ((this as PostClone).origin.isHidden) {
+        PostHiding.hide(this, Conf['Stubs'], false);
+      }
+      return;
+    }
 
     let data: HideOptions = PostHiding.db.get({boardID: this.board.ID, threadID: this.thread.ID, postID: this.ID});
     if (!data && this.info.uniqueID) {
@@ -61,12 +74,12 @@ var PostHiding = {
     if (data) {
       if (data.thisPost) {
         PostHiding.hide(this, data.makeStub, data.hideRecursively, 'Hidden manually');
-      } else {
+      } else if (!(Conf['Quote Threading'] && Conf['Thread Quotes'])) {
         PostHiding.hideRecursive(this, data.makeStub);
       }
     }
 
-    if (!Conf['Reply Hiding Buttons']) { return; }
+    if (!Conf['Reply Hiding Buttons'] && !Conf['Quote Threading']) { return; }
 
     const button = PostHiding.makeButton(this, 'hide');
     const sa = g.SITE.selectors.sideArrows;
@@ -313,8 +326,20 @@ var PostHiding = {
 
   toggle() {
     const post: Post = Get.postFromNode(this);
-    post.isHidden ? PostHiding.show(post) : PostHiding.hide(post, undefined, undefined, 'Hidden manually');
-    PostHiding.saveHiddenState(post, post.isHidden);
+    const isThreaded = Conf['Quote Threading'] && Conf['Thread Quotes'];
+    if (post.isHidden) {
+      PostHiding.show(post);
+    } else {
+      PostHiding.hide(
+        post,
+        isThreaded ? true : undefined,
+        isThreaded ? false : undefined,
+        'Hidden manually'
+      );
+    }
+    if (!post.isClone) {
+      PostHiding.saveHiddenState(post, post.isHidden);
+    }
   },
 
   hide(
@@ -326,12 +351,24 @@ var PostHiding = {
     if (post.isHidden) return;
     post.isHidden = true;
 
+    const isThreaded = Conf['Quote Threading'] && Conf['Thread Quotes'];
+    if (isThreaded) {
+      makeStub = true;
+      hideRecursively = false;
+    }
+
+    if (post.nodes.threadContainer) {
+      post.nodes.threadContainer.hidden = true;
+    }
+
     if (hideRecursively) {
       PostHiding.hideRecursive(post, makeStub);
     }
 
-    for (var quotelink of Get.allQuotelinksLinkingTo(post)) {
-      $.addClass(quotelink, 'filtered');
+    if (!isThreaded || reason !== 'Hidden manually') {
+      for (var quotelink of Get.allQuotelinksLinkingTo(post)) {
+        $.addClass(quotelink, 'filtered');
+      }
     }
 
     if (!makeStub) {
@@ -344,7 +381,9 @@ var PostHiding = {
     $.add(a, $.el('span', { className: 'stub-name', textContent: post.info.nameBlock}));
 
     let reasons = post.filterResults?.reasons || [];
-    if (reason) reasons = [...reasons, reason];
+    if (reason && (!isThreaded || reason !== 'Hidden manually')) {
+      reasons = [...reasons, reason];
+    }
     if (Conf['Filter Reason'] && reasons.length) {
       const reasonsSpan = $.el('span', { className: 'stub-reasons' });
       $.add(reasonsSpan, reasons.map(re => $.el('span', { className: 'stub-reason', textContent: re })));
@@ -353,10 +392,11 @@ var PostHiding = {
 
     $.add(post.nodes.stub, a);
 
-    if (!Conf['Filter Reason'] && reasons) post.nodes.stub.title = reasons.join(' & ');
+    if (!Conf['Filter Reason'] && reasons.length) post.nodes.stub.title = reasons.join(' & ');
     if (Conf['Menu']) {
       $.add(post.nodes.stub, Menu.makeButton(post));
     }
+    QuoteThreading.updateStubCount(post);
     $.prepend(post.nodes.root, post.nodes.stub);
   },
 
@@ -371,8 +411,11 @@ var PostHiding = {
     } else {
       post.nodes.root.hidden = false;
     }
+    if (post.nodes.threadContainer) {
+      post.nodes.threadContainer.hidden = false;
+    }
     post.isHidden = false;
-    if (showRecursively) {
+    if (showRecursively && !(Conf['Quote Threading'] && Conf['Thread Quotes'])) {
       Recursive.apply(PostHiding.show, post, true);
       Recursive.rm(PostHiding.hide, post);
     }

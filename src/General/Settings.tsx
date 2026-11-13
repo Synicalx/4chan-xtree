@@ -480,6 +480,9 @@ Enable it on boards.${location.hostname.split('.')[1]}.org in your browser's pri
       set('fxtMaxReplies', data['Resolve Tweet Replies'] ? (data['Resolve all Tweet Replies'] ? 100 : 1) : 0);
       set('fxtLang', data['Translate non-English Tweets to English'] ? 'en' : '');
     }
+    if (data['Use 4chan XT Catalog'] != null && data[`Use ${meta.name} Catalog`] == null) {
+      set(`Use ${meta.name} Catalog`, data['Use 4chan XT Catalog']);
+    }
     return changes;
   },
 

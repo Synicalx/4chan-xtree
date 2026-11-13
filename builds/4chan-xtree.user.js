@@ -1,11 +1,11 @@
 // ==UserScript==
-// @name         4chan XT
-// @version      2.24.2
+// @name         4chan xtree
+// @version      2.25.0
 // @minGMVer     1.14
 // @minFFVer     78
-// @namespace    4chan-XT
-// @description  4chan XT is a script that adds various features to anonymous imageboards.
-// @license      MIT; https://github.com/TuxedoTako/4chan-xt/blob/project-XT/LICENSE
+// @namespace    4chan-xtree
+// @description  4chan xtree is a script that adds various features to anonymous imageboards, including tree-style thread viewing.
+// @license      MIT; https://github.com/Synicalx/4chan-xtree/blob/project-XT/LICENSE
 // @include      https://boards.4chan.org/*
 // @include      https://sys.4chan.org/*
 // @include      https://www.4chan.org/*
@@ -77,8 +77,8 @@
 // @grant        GM.openInTab
 // @grant        GM.xmlHttpRequest
 // @run-at       document-start
-// @updateURL    none
-// @downloadURL  none
+// @updateURL    https://github.com/Synicalx/4chan-xtree/releases/latest/download/4chan-xtree.meta.js
+// @downloadURL  https://github.com/Synicalx/4chan-xtree/releases/latest/download/4chan-xtree.user.js
 // @icon         data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAACVBMVEUAAGcAAABmzDNZt9VtAAAAAXRSTlMAQObYZgAAAF5JREFUeNrtkTESABAQxPD/R6tsE2dUGYUtFJvLDKf93KevHJAjpBorAQWSBIKqFASC4G0pCAkm4GfaEvgYXl0T6HBaE97f0vmnfYHbZOMLZCx9ISdKWwjOWZSC8GYm4SUGwfYgqI4AAAAASUVORK5CYII=
 // @license      MIT
 // ==/UserScript==
@@ -169,25 +169,25 @@
   'use strict';
 
   var version = {
-    "version": "2.24.2",
-    "date": "2025-12-23T20:20:20Z"
+    "version": "2.25.0",
+    "date": "2026-11-14T07:00:00Z"
   };
 
   var meta = {
-   "name": "4chan XT",
-   "path": "4chan-XT",
-   "fork": "TuxedoTako",
-   "page": "https://github.com/TuxedoTako/4chan-xt",
-   "downloads": "https://github.com/TuxedoTako/4chan-xt/releases",
+   "name": "4chan xtree",
+   "path": "4chan-xtree",
+   "fork": "Synicalx",
+   "page": "https://github.com/Synicalx/4chan-xtree",
+   "downloads": "https://github.com/Synicalx/4chan-xtree/releases",
    "oldVersions": "https://raw.githubusercontent.com/ccd0/4chan-x/",
    "faq": "https://github.com/TuxedoTako/4chan-xt/wiki/Frequently-Asked-Questions",
    "upstreamFaq": "https://github.com/ccd0/4chan-x/wiki/Frequently-Asked-Questions",
    "captchaFAQ": "https://github.com/ccd0/4chan-x/wiki/Captcha-FAQ",
    "cssGuide": "https://github.com/ccd0/4chan-x/wiki/Styling-Guide",
-   "license": "https://github.com/TuxedoTako/4chan-xt/blob/project-XT/LICENSE",
-   "changelog": "https://github.com/TuxedoTako/4chan-xt/blob/project-XT/CHANGELOG.md",
-   "issues": "https://github.com/TuxedoTako/4chan-xt/issues",
-   "newIssue": "https://github.com/TuxedoTako/4chan-xt/issues",
+   "license": "https://github.com/Synicalx/4chan-xtree/blob/project-XT/LICENSE",
+   "changelog": "https://github.com/Synicalx/4chan-xtree/blob/project-XT/CHANGELOG.md",
+   "issues": "https://github.com/Synicalx/4chan-xtree/issues",
+   "newIssue": "https://github.com/Synicalx/4chan-xtree/issues",
    "newIssueMaxLength": 8181,
    "alternatives": "https://www.4chan-x.net/4chan_alternatives.html",
    "appid": "lacclbnghgdicfifcamcmcnilckjamag",
@@ -4656,11 +4656,35 @@ textarea.copy-text-element {
 
 /* Quote Threading */
 .threadContainer {
+  position: relative;
   margin-left: 20px;
   border-left: 1px solid rgba(128,128,128,.3);
 }
+.threadBranchLink {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 11px;
+  cursor: pointer;
+  z-index: 1;
+}
+.threadBranchLink:hover {
+  border-left: 2px solid currentColor;
+  left: -1px;
+  width: 6px;
+  opacity: 0.7;
+}
 .threadOP {
   clear: both;
+}
+:root.thread-quotes .stub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stub-id {
+  opacity: 0.8;
 }
 
 /* File */
@@ -8645,8 +8669,8 @@ svg.icon {
         node.id += `_${PostClone.suffix}`;
       }
       PostClone.suffix++;
-      // Remove inlined posts inside of this post.
-      for (var inline of $$('.inline', root)) {
+      // Remove inlined posts and stubs inside of this post.
+      for (var inline of $$('.inline, .stub', root)) {
         $.rm(inline);
       }
       for (var inlined of $$('.inlined', root)) {
@@ -8915,558 +8939,275 @@ svg.icon {
     },
   };
 
-  var PostHiding = {
-    db: undefined,
-    /** poster Ids to filter */
-    posterIdDb: undefined,
-    init() {
-      if (!['index', 'thread'].includes(g.VIEW) || (!Conf['Reply Hiding Buttons'] && !(Conf['Menu'] && Conf['Reply Hiding Link']))) {
-        return;
-      }
-      if (Conf['Reply Hiding Buttons']) {
-        $.addClass(doc, "reply-hide");
-      }
-      this.db = new DataBoard('hiddenPosts');
-      this.posterIdDb = new DataBoard('hiddenPosterIds');
-      Callbacks.Post.push({
-        name: 'Reply Hiding',
-        cb: this.node
+  class RandomAccessList {
+    constructor(items) {
+      this.length = 0;
+      if (items) { for (var item of items) { this.push(item); } }
+    }
+
+    push(data) {
+      let item;
+      let {ID} = data;
+      if (!ID) { ID = data.id; }
+      if (this[ID]) { return; }
+      const {last} = this;
+      this[ID] = (item = {
+        prev: last,
+        next: null,
+        data,
+        ID
       });
-    },
-    isHidden(boardID, threadID, postID) {
-      return !!(PostHiding.db && PostHiding.db.get({ boardID, threadID, postID }));
-    },
-    node() {
-      if (!this.isReply || this.isClone || this.isFetchedQuote)
-        return;
-      let data = PostHiding.db.get({ boardID: this.board.ID, threadID: this.thread.ID, postID: this.ID });
-      if (!data && this.info.uniqueID) {
-        const hiddenPosterIds = PostHiding.posterIdDb.get({ boardID: this.board.ID, threadID: this.thread.ID });
-        if (hiddenPosterIds && this.info.uniqueID in hiddenPosterIds) {
-          data = hiddenPosterIds[this.info.uniqueID];
-          // thisPost is only on the first hidden posts, it shouldn't apply when hiding on poster ID
-          data.thisPost = true;
-        }
-      }
-      if (data) {
-        if (data.thisPost) {
-          PostHiding.hide(this, data.makeStub, data.hideRecursively, 'Hidden manually');
-        } else {
-          PostHiding.hideRecursive(this, data.makeStub);
-        }
-      }
-      if (!Conf['Reply Hiding Buttons']) {
-        return;
-      }
-      const button = PostHiding.makeButton(this, 'hide');
-      const sa = g.SITE.selectors.sideArrows;
-      if (sa) {
-        const sideArrows = $(sa, this.nodes.root);
-        $.replace(sideArrows.firstChild, button);
-        sideArrows.className = 'replacedSideArrows';
+      item.prev = last;
+      this.last = last ?
+        (last.next = item)
+      :
+        (this.first = item);
+      return this.length++;
+    }
+
+    before(root, item) {
+      if ((item.next === root) || (item === root)) { return; }
+
+      this.rmi(item);
+
+      const {prev} = root;
+      root.prev = item;
+      item.next = root;
+      item.prev = prev;
+      if (prev) {
+        return prev.next = item;
       } else {
-        $.prepend(this.nodes.info, button);
-      }
-    },
-    menu: {
-      post: undefined,
-      async init() {
-        if (!['index', 'thread'].includes(g.VIEW) || !Conf['Menu'] || !Conf['Reply Hiding Link'])
-          return;
-        await new Promise(res => BoardConfig.ready(res));
-        // Hide
-        let applyHide = $.el('a', {
-          textContent: 'Apply',
-          href: 'javascript:;'
-        });
-        $.on(applyHide, 'click', PostHiding.menu.hide);
-        const hideOptions = [
-          { el: applyHide },
-          { el: UI.checkbox('thisPost', 'This post', true) },
-          { el: UI.checkbox('replies', 'Hide replies', Conf['Recursive Hiding']) },
-          { el: UI.checkbox('makeStub', 'Make stub', Conf['Stubs']) },
-        ];
-        if (g.BOARD.config.user_ids) {
-          hideOptions.push({ el: UI.checkbox('byId', 'By poster id', false) });
-        }
-        Menu.menu.addEntry({
-          el: $.el('div', {
-            className: 'hide-reply-link',
-            textContent: 'Hide'
-          }),
-          order: 20,
-          open(post) {
-            if (!post.isReply || post.isClone || post.isHidden) {
-              return false;
-            }
-            PostHiding.menu.post = post;
-            return true;
-          },
-          subEntries: hideOptions
-        });
-        // Show
-        const applyShow = $.el('a', {
-          textContent: 'Apply',
-          href: 'javascript:;'
-        });
-        $.on(applyShow, 'click', PostHiding.menu.show);
-        const thisPost = UI.checkbox('thisPost', 'This post', false);
-        const replies = UI.checkbox('replies', 'Show replies', false);
-        const hideStubLink = $.el('a', {
-          textContent: 'Hide stub',
-          href: 'javascript:;'
-        });
-        $.on(hideStubLink, 'click', PostHiding.menu.hideStub);
-        const showOptions = [
-          { el: applyShow },
-          { el: thisPost },
-          { el: replies },
-        ];
-        let byId;
-        if (g.BOARD.config.user_ids) {
-          byId = UI.checkbox('byId', 'By poster id', false);
-          showOptions.push({ el: byId });
-        }
-        Menu.menu.addEntry({
-          el: $.el('div', {
-            className: 'show-reply-link',
-            textContent: 'Show'
-          }),
-          order: 20,
-          open(post) {
-            if (!post.isReply || post.isClone || !post.isHidden) {
-              return false;
-            }
-            const data = PostHiding.db.get({ boardID: post.board.ID, threadID: post.thread.ID, postID: post.ID });
-            if (!data)
-              return false;
-            PostHiding.menu.post = post;
-            thisPost.firstChild.checked = post.isHidden;
-            replies.firstChild.checked = data.hideRecursively ?? Conf['Recursive Hiding'];
-            if (byId)
-              byId.firstChild.checked = data.byId;
-            return true;
-          },
-          subEntries: showOptions
-        });
-        Menu.menu.addEntry({
-          el: hideStubLink,
-          order: 15,
-          open(post) {
-            if (!post.isReply || post.isClone || !post.isHidden) {
-              return false;
-            }
-            if (!(PostHiding.db.get({ boardID: post.board.ID, threadID: post.thread.ID, postID: post.ID }))) {
-              return false;
-            }
-            return PostHiding.menu.post = post;
-          }
-        });
-      },
-      hide() {
-        const parent = this.parentNode;
-        const thisPost = $('input[name=thisPost]', parent).checked;
-        const replies = $('input[name=replies]', parent).checked;
-        const makeStub = $('input[name=makeStub]', parent).checked;
-        const byId = $('input[name=byId]', parent)?.checked;
-        const { post } = PostHiding.menu;
-        if (!thisPost && !replies && !byId)
-          return;
-        if (thisPost) {
-          PostHiding.hide(post, makeStub, replies, 'Hidden manually');
-        } else if (replies) {
-          PostHiding.hideRecursive(post, makeStub);
-        }
-        if (byId) {
-          const msg = `Hidden because of poster ID ${post.info.uniqueID}`;
-          g.posts.forEach((p) => {
-            if (p.info.uniqueID === post.info.uniqueID && p !== post) {
-              PostHiding.hide(p, makeStub, replies, msg);
-              PostHiding.saveHiddenState(p, true, thisPost, makeStub, replies, byId);
-            }
-          });
-          const data = PostHiding.posterIdDb.get({ boardID: post.boardID, threadID: post.threadID, defaultValue: dict() });
-          if (!(post.info.uniqueID in data)) {
-            data[post.info.uniqueID] = { makeStub, hideRecursively: replies };
-            PostHiding.posterIdDb.set({ boardID: post.boardID, threadID: post.threadID, val: data });
-          }
-        }
-        PostHiding.saveHiddenState(post, true, thisPost, makeStub, replies, byId);
-        $.event('CloseMenu');
-      },
-      show() {
-        const parent = this.parentNode;
-        const thisPost = $('input[name=thisPost]', parent).checked;
-        const replies = $('input[name=replies]', parent).checked;
-        const byId = $('input[name=byId]', parent)?.checked;
-        const { post } = PostHiding.menu;
-        const { boardID, threadID, postID } = post;
-        if (!thisPost && !replies && !byId)
-          return;
-        if (thisPost) {
-          PostHiding.show(post, replies);
-        } else if (replies) {
-          Recursive.apply(PostHiding.show, post, true);
-          Recursive.rm(PostHiding.hide, post);
-        }
-        if (byId) {
-          g.posts.forEach((p) => {
-            if (p.info.uniqueID === post.info.uniqueID && p !== post) {
-              PostHiding.show(p, replies);
-              const data = PostHiding.db.get({ boardID, threadID, postID });
-              if (data) {
-                PostHiding.saveHiddenState(post, !(thisPost && replies), !thisPost, data.makeStub, !replies, byId);
-              }
-            }
-          });
-          const byIdState = PostHiding.posterIdDb.get({ boardID, threadID });
-          if (byIdState && post.info.uniqueID in byIdState) {
-            delete byIdState[post.info.uniqueID];
-            PostHiding.posterIdDb.set({ boardID, threadID, val: byIdState });
-          }
-        }
-        const data = PostHiding.db.get({ boardID, threadID, postID });
-        if (data) {
-          PostHiding.saveHiddenState(post, !(thisPost && replies), !thisPost, data.makeStub, !replies, byId);
-        }
-        $.event('CloseMenu');
-      },
-      hideStub() {
-        let data;
-        const { post } = PostHiding.menu;
-        if (data = PostHiding.db.get({ boardID: post.board.ID, threadID: post.thread.ID, postID: post.ID })) {
-          PostHiding.show(post, data.hideRecursively);
-          PostHiding.hide(post, false, data.hideRecursively);
-          PostHiding.saveHiddenState(post, true, true, false, data.hideRecursively, data.byId);
-        }
-        $.event('CloseMenu');
-      }
-    },
-    makeButton(post, type) {
-      const span = $.el('span', {
-        className: 'stub-icon',
-      });
-      const a = $.el('a', {
-        className: `${type}-post-button ${type}-reply-button`,
-        href: 'javascript:;'
-      });
-      Icon.set(span, type === 'hide' ? 'squareMinus' : 'squarePlus');
-      $.add(a, span);
-      $.on(a, 'click', PostHiding.toggle);
-      return a;
-    },
-    saveHiddenState(post, isHiding, thisPost, makeStub, hideRecursively, byId) {
-      const data = {
-        boardID: post.board.ID,
-        threadID: post.thread.ID,
-        postID: post.ID
-      };
-      if (isHiding) {
-        data.val = {
-          thisPost: thisPost !== false, // undefined -> true
-          makeStub,
-          hideRecursively,
-          byId
-        };
-        PostHiding.db.set(data);
-      } else {
-        PostHiding.db.delete(data);
-      }
-    },
-    toggle() {
-      const post = Get.postFromNode(this);
-      post.isHidden ? PostHiding.show(post) : PostHiding.hide(post, undefined, undefined, 'Hidden manually');
-      PostHiding.saveHiddenState(post, post.isHidden);
-    },
-    hide(post, makeStub = Conf['Stubs'], hideRecursively = Conf['Recursive Hiding'], reason) {
-      if (post.isHidden)
-        return;
-      post.isHidden = true;
-      if (hideRecursively) {
-        PostHiding.hideRecursive(post, makeStub);
-      }
-      for (var quotelink of Get.allQuotelinksLinkingTo(post)) {
-        $.addClass(quotelink, 'filtered');
-      }
-      if (!makeStub) {
-        post.nodes.root.hidden = true;
-        return;
-      }
-      post.nodes.stub = $.el('div', { className: 'stub' });
-      const a = PostHiding.makeButton(post, 'show');
-      $.add(a, $.el('span', { className: 'stub-name', textContent: post.info.nameBlock }));
-      let reasons = post.filterResults?.reasons || [];
-      if (reason)
-        reasons = [...reasons, reason];
-      if (Conf['Filter Reason'] && reasons.length) {
-        const reasonsSpan = $.el('span', { className: 'stub-reasons' });
-        $.add(reasonsSpan, reasons.map(re => $.el('span', { className: 'stub-reason', textContent: re })));
-        a.appendChild(reasonsSpan);
-      }
-      $.add(post.nodes.stub, a);
-      if (!Conf['Filter Reason'] && reasons)
-        post.nodes.stub.title = reasons.join(' & ');
-      if (Conf['Menu']) {
-        $.add(post.nodes.stub, Menu.makeButton(post));
-      }
-      $.prepend(post.nodes.root, post.nodes.stub);
-    },
-    hideRecursive(post, makeStub) {
-      Recursive.applyAndAdd(PostHiding.hide, post, makeStub, true, `Hidden recursively from ${post.ID}`);
-    },
-    show(post, showRecursively = Conf['Recursive Hiding']) {
-      if (post.nodes.stub) {
-        $.rm(post.nodes.stub);
-        delete post.nodes.stub;
-      } else {
-        post.nodes.root.hidden = false;
-      }
-      post.isHidden = false;
-      if (showRecursively) {
-        Recursive.apply(PostHiding.show, post, true);
-        Recursive.rm(PostHiding.hide, post);
-      }
-      for (var quotelink of Get.allQuotelinksLinkingTo(post)) {
-        $.rmClass(quotelink, 'filtered');
+        return this.first = item;
       }
     }
-  };
 
-  var RelativeDates = {
-    INTERVAL: 30000,
-    init() {
-      if ((['index', 'thread', 'archive'].includes(g.VIEW) &&
-        ['Show', 'Both', 'BothRelativeFirst'].includes(Conf.RelativeTime)) ||
-        Index.enabled) {
-        this.flush();
-        $.on(d, 'visibilitychange PostsInserted', this.flush);
-      }
-      if (Conf.RelativeTime !== 'No') {
-        return Callbacks.Post.push({
-          name: 'Relative Post Dates',
-          cb: this.node
-        });
-      }
-    },
-    node() {
-      if (!this.info.date) {
-        return;
-      }
-      const dateEl = this.nodes.date;
-      if (Conf.RelativeTime === 'Hover') {
-        $.on(dateEl, 'mouseover', () => RelativeDates.hover(this));
-        return;
-      }
-      if (this.isClone) {
-        return;
-      }
-      // Show original absolute time as tooltip so users can still know exact times
-      // Since "Time Formatting" runs its `node` before us, the title tooltip will
-      // pick up the user-formatted time instead of 4chan time when enabled.
-      if (Conf.RelativeTime === 'Show') {
-        dateEl.dataset.fullTime = dateEl.textContent;
-        dateEl.title = dateEl.textContent;
-      }
-      return RelativeDates.update(this);
-    },
-    /** @param diff is milliseconds from now. */
-    relative(diff, now, date, abbrev) {
-      let number;
-      let unit;
-      if ((number = (diff / DAY)) >= 1) {
-        const years = now.getFullYear() - date.getFullYear();
-        let months = now.getMonth() - date.getMonth();
-        const days = now.getDate() - date.getDate();
-        if (years > 1) {
-          number = years - ((months < 0) || ((months === 0) && (days < 0)));
-          unit = 'year';
-        } else if ((years === 1) && ((months > 0) || ((months === 0) && (days >= 0)))) {
-          number = years;
-          unit = 'year';
-        } else if ((months = months + (12 * years)) > 1) {
-          number = months - (days < 0);
-          unit = 'month';
-        } else if ((months === 1) && (days >= 0)) {
-          number = months;
-          unit = 'month';
-        } else {
-          unit = 'day';
-        }
-      } else if ((number = (diff / HOUR)) >= 1) {
-        unit = 'hour';
-      } else if ((number = (diff / MINUTE)) >= 1) {
-        unit = 'minute';
+    after(root, item) {
+      if ((item.prev === root) || (item === root)) { return; }
+
+      this.rmi(item);
+
+      const {next} = root;
+      root.next = item;
+      item.prev = root;
+      item.next = next;
+      if (next) {
+        return next.prev = item;
       } else {
-        // prevent "-1 seconds ago"
-        number = Math.max(0, diff) / SECOND;
-        unit = 'second';
+        return this.last = item;
       }
-      const rounded = Math.round(number);
-      if (abbrev) {
-        unit = unit === 'month' ? 'mo' : unit[0];
-      } else {
-        if (rounded !== 1) {
-          unit += 's';
-        } // pluralize
-      }
-      if (abbrev) {
-        return `${rounded}${unit}`;
-      } else {
-        return `${rounded} ${unit} ago`;
-      }
-    },
-    // Changing all relative dates as soon as possible incurs many annoying
-    // redraws and scroll stuttering. Thus, sacrifice accuracy for UX/CPU economy,
-    // and perform redraws when the DOM is otherwise being manipulated (and scroll
-    // stuttering won't be noticed), falling back to INTERVAL while the page
-    // is visible.
-    //
-    // Each individual dateTime element will add its update() function to the stale list
-    // when it is to be called.
-    stale: [],
-    timeout: undefined,
-    flush() {
-      // No point in changing the dates until the user sees them.
-      if (d.hidden) {
-        return;
-      }
-      const now = new Date();
-      for (var data of RelativeDates.stale) {
-        RelativeDates.update(data, now);
-      }
-      RelativeDates.stale = [];
-      // Reset automatic flush.
-      clearTimeout(RelativeDates.timeout);
-      RelativeDates.timeout = setTimeout(RelativeDates.flush, RelativeDates.INTERVAL);
-    },
-    hover(post) {
-      const { date } = post.info;
-      const now = new Date();
-      const diff = now - date;
-      post.nodes.date.title = RelativeDates.relative(diff, now, date);
-    },
-    // `update()`, when called from `flush()`, updates the elements,
-    // and re-calls `setOwnTimeout()` to re-add `data` to the stale list later.
-    update(data, now = new Date()) {
-      let abbrev, date;
-      const isPost = data instanceof Post;
-      if (isPost) {
-        ({ date } = data.info);
-        abbrev = false;
-      } else {
-        date = new Date(+data.dataset.utc);
-        abbrev = !!data.dataset.abbrev;
-      }
-      const diff = now - date;
-      const relative = RelativeDates.relative(diff, now, date, abbrev);
-      if (isPost) {
-        for (var singlePost of [data].concat(data.clones)) {
-          const node = singlePost.nodes.date;
-          if (Conf.RelativeTime === 'Show') {
-            node.textContent = relative;
-          } else {
-            let full = node.dataset.fullTime;
-            if (!full) {
-              full = node.textContent;
-              node.dataset.fullTime = full;
-            }
-            node.textContent = Conf.RelativeTime === 'Both' ? `${full}, ${relative}` : `${relative}, ${full}`;
-          }
-        }
-      } else {
-        data.firstChild.textContent = relative;
-      }
-      RelativeDates.setOwnTimeout(diff, data);
-    },
-    setOwnTimeout(diff, data) {
-      const delay = diff < MINUTE ?
-        SECOND - ((diff + (SECOND / 2)) % SECOND)
-        : diff < HOUR ?
-          MINUTE - ((diff + (MINUTE / 2)) % MINUTE)
-          : diff < DAY ?
-            HOUR - ((diff + (HOUR / 2)) % HOUR)
-            :
-              DAY - ((diff + (DAY / 2)) % DAY);
-      setTimeout(RelativeDates.markStale, delay, data);
-    },
-    markStale(data) {
-      if (RelativeDates.stale.includes(data)) {
-        return;
-      } // We can call RelativeDates.update() multiple times.
-      if (data instanceof Post && !g.posts.get(data.fullID)) {
-        return;
-      } // collected post.
-      if (data instanceof Element && !doc.contains(data)) {
-        return;
-      } // removed catalog reply.
-      RelativeDates.stale.push(data);
     }
-  };
 
-  var ThreadWatcherPage = `<div class="move">
-  Thread Watcher <a class="refresh" title="Check threads" href="javascript:;" title="refresh"></a>
-  <span id="watcher-status"></span>
-  <a class="menu-button" href="javascript:;"></a>
-  <a class="close" href="javascript:;">×</a>
-</div>
-<div id="watched-threads"></div>`;
-
-  class Board {
-    toString() { return this.ID; }
-    constructor(ID) {
-      this.ID = ID;
-      this.boardID = this.ID;
-      this.siteID = g.SITE.ID;
-      this.threads = new SimpleDict();
-      this.posts = new SimpleDict();
-      this.config = BoardConfig.boards?.[this.ID] || {};
-      g.boards[this] = this;
-    }
-    cooldowns() {
-      const c2 = (this.config || {}).cooldowns || {};
-      const c = {
-        thread: c2.threads || 0,
-        reply: c2.replies || 0,
-        image: c2.images || 0,
-        thread_global: 300 // inter-board thread cooldown
-      };
-      // Pass users have reduced cooldowns.
-      if (d.cookie.indexOf('pass_enabled=1') >= 0) {
-        for (var key of ['reply', 'image']) {
-          c[key] = Math.ceil(c[key] / 2);
-        }
+    prepend(item) {
+      const {first} = this;
+      if ((item === first) || !this[item.ID]) { return; }
+      this.rmi(item);
+      item.next  = first;
+      if (first) {
+        first.prev = item;
+      } else {
+        this.last = item;
       }
-      return c;
+      this.first = item;
+      return delete item.prev;
+    }
+
+    shift() {
+      return this.rm(this.first.ID);
+    }
+
+    order() {
+      let item;
+      const order = [(item = this.first)];
+      while ((item = item.next)) { order.push(item); }
+      return order;
+    }
+
+    rm(ID) {
+      const item = this[ID];
+      if (!item) { return; }
+      delete this[ID];
+      this.length--;
+      this.rmi(item);
+      delete item.next;
+      return delete item.prev;
+    }
+
+    rmi(item) {
+      const {prev, next} = item;
+      if (prev) {
+        prev.next = next;
+      } else {
+        this.first = next;
+      }
+      if (next) {
+        return next.prev = prev;
+      } else {
+        return this.last = prev;
+      }
     }
   }
 
-  const PostRedirect = {
+  var ReplyPruning = {
     init() {
-      return $.on(d, 'QRPostSuccessful', e => {
-        if (!e.detail.redirect) { return; }
-        this.event = e;
-        this.delays = 0;
-        return $.queueTask(() => {
-          if ((e === this.event) && (this.delays === 0)) {
-            return location.href = e.detail.redirect;
-          }
-        });
+      if ((g.VIEW !== 'thread') || !Conf['Reply Pruning']) { return; }
+
+      this.container = $.frag();
+
+      this.summary = $.el('span', {
+        hidden:    true,
+        className: 'summary'
+      }
+      );
+      this.summary.style.cursor = 'pointer';
+      $.on(this.summary, 'click', () => {
+        this.inputs.enabled.checked = !this.inputs.enabled.checked;
+        return $.event('change', null, this.inputs.enabled);
+      });
+
+      const label = UI.checkbox('Prune Replies', 'Show Last', Conf['Prune All Threads']);
+      const el = $.el('span',
+        {title: 'Maximum number of replies to show.'}
+      ,
+        {innerHTML: " <input type=\"number\" name=\"Max Replies\" min=\"0\" step=\"1\" value=\"" + E(Conf["Max Replies"]) + "\" class=\"field\">"});
+      $.prepend(el, label);
+
+      this.inputs = {
+        enabled: label.firstElementChild,
+        replies: el.lastElementChild
+      };
+
+      this.setEnabled.call(this.inputs.enabled);
+      $.on(this.inputs.enabled, 'change', this.setEnabled);
+      $.on(this.inputs.replies, 'change', $.cb.value);
+
+      Header.menu.addEntry({
+        el,
+        order: 190
+      });
+
+      return Callbacks.Thread.push({
+        name: 'Reply Pruning',
+        cb:   this.node
       });
     },
 
-    delays: 0,
+    position: 0,
+    hidden: 0,
+    hiddenFiles: 0,
+    total: 0,
+    totalFiles: 0,
 
-    delay() {
-      if (!this.event) { return null; }
-      const e = this.event;
-      this.delays++;
-      return () => {
-        if (e !== this.event) { return; }
-        this.delays--;
-        if (this.delays === 0) {
-          return location.href = e.detail.redirect;
+    setEnabled() {
+      const other = QuoteThreading.input;
+      if (this.checked && other?.checked) {
+        other.checked = false;
+        $.event('change', null, other);
+      }
+      return ReplyPruning.active = this.checked;
+    },
+
+    showIfHidden(id) {
+      if (ReplyPruning.container && $(`#${id}`, ReplyPruning.container)) {
+        ReplyPruning.inputs.enabled.checked = false;
+        return $.event('change', null, ReplyPruning.inputs.enabled);
+      }
+    },
+
+    node() {
+      let middle;
+      ReplyPruning.thread = this;
+
+      if (this.isSticky) {
+        ReplyPruning.active = (ReplyPruning.inputs.enabled.checked = true);
+        if (QuoteThreading.input) {
+          // Disable Quote Threading for this thread but don't save the setting.
+          Conf['Thread Quotes'] = (QuoteThreading.input.checked = false);
         }
-      };
+      }
+
+      this.posts.forEach(function(post) {
+        if (post.isReply) {
+          ReplyPruning.total++;
+          if (post.file) { return ReplyPruning.totalFiles++; }
+        }
+      });
+
+      // If we're linked to a post that we would hide, don't hide the posts in the first place.
+      if (
+        ReplyPruning.active &&
+        /^#p\d+$/.test(location.hash) &&
+        (1 <= (middle = this.posts.keys.indexOf(location.hash.slice(2))) && middle < 1 + Math.max(ReplyPruning.total - +Conf["Max Replies"], 0))
+      ) {
+        ReplyPruning.active = (ReplyPruning.inputs.enabled.checked = false);
+      }
+
+      $.after(this.OP.nodes.root, ReplyPruning.summary);
+
+      $.on(ReplyPruning.inputs.enabled, 'change', ReplyPruning.update);
+      $.on(ReplyPruning.inputs.replies, 'change', ReplyPruning.update);
+      $.on(d, 'ThreadUpdate', ReplyPruning.updateCount);
+      $.on(d, 'ThreadUpdate', ReplyPruning.update);
+
+      return ReplyPruning.update();
+    },
+
+    updateCount(e) {
+      if (e.detail[404]) { return; }
+      for (var fullID of e.detail.newPosts) {
+        ReplyPruning.total++;
+        if (g.posts.get(fullID).file) { ReplyPruning.totalFiles++; }
+      }
+    },
+
+    update() {
+      let boardTop, node, post;
+      const hidden1 = ReplyPruning.hidden;
+      const hidden2 = ReplyPruning.active ?
+        Math.max(ReplyPruning.total - +Conf["Max Replies"], 0)
+      :
+        0;
+
+      // Record position from bottom of document
+      const oldPos = d.body.clientHeight - window.scrollY;
+
+      const {posts} = ReplyPruning.thread;
+
+      if (ReplyPruning.hidden < hidden2) {
+        while ((ReplyPruning.hidden < hidden2) && (ReplyPruning.position < posts.keys.length)) {
+          post = posts.get(posts.keys[ReplyPruning.position++]);
+          if (post.isReply && !post.isFetchedQuote) {
+            while ((node = ReplyPruning.summary.nextSibling) && (node !== post.nodes.root)) { $.add(ReplyPruning.container, node); }
+            $.add(ReplyPruning.container, post.nodes.root);
+            ReplyPruning.hidden++;
+            if (post.file) { ReplyPruning.hiddenFiles++; }
+          }
+        }
+
+      } else if (ReplyPruning.hidden > hidden2) {
+        const frag = $.frag();
+        while ((ReplyPruning.hidden > hidden2) && (ReplyPruning.position > 0)) {
+          post = posts.get(posts.keys[--ReplyPruning.position]);
+          if (post.isReply && !post.isFetchedQuote) {
+            while ((node = ReplyPruning.container.lastChild) && (node !== post.nodes.root)) { $.prepend(frag, node); }
+            $.prepend(frag, post.nodes.root);
+            ReplyPruning.hidden--;
+            if (post.file) { ReplyPruning.hiddenFiles--; }
+          }
+        }
+        $.after(ReplyPruning.summary, frag);
+        $.event('PostsInserted', null, ReplyPruning.summary.parentNode);
+      }
+
+      ReplyPruning.summary.textContent = ReplyPruning.active ?
+        g.SITE.Build.summaryText('+', ReplyPruning.hidden, ReplyPruning.hiddenFiles)
+      :
+        g.SITE.Build.summaryText('-', ReplyPruning.total, ReplyPruning.totalFiles);
+      ReplyPruning.summary.hidden = (ReplyPruning.total <= +Conf["Max Replies"]);
+
+      // Maintain position in thread when posts are added/removed above
+      if ((hidden1 !== hidden2) && ((boardTop = Header.getTopOf($('.board'))) < 0)) {
+        return window.scrollBy(0, Math.max(d.body.clientHeight - oldPos, window.scrollY + boardTop) - window.scrollY);
+      }
     }
   };
 
@@ -9628,6 +9369,36 @@ svg.icon {
       }
       ScrollMarkers.markers = newMarkers;
     }, false),
+  };
+
+  const PostRedirect = {
+    init() {
+      return $.on(d, 'QRPostSuccessful', e => {
+        if (!e.detail.redirect) { return; }
+        this.event = e;
+        this.delays = 0;
+        return $.queueTask(() => {
+          if ((e === this.event) && (this.delays === 0)) {
+            return location.href = e.detail.redirect;
+          }
+        });
+      });
+    },
+
+    delays: 0,
+
+    delay() {
+      if (!this.event) { return null; }
+      const e = this.event;
+      this.delays++;
+      return () => {
+        if (e !== this.event) { return; }
+        this.delays--;
+        if (this.delays === 0) {
+          return location.href = e.detail.redirect;
+        }
+      };
+    }
   };
 
   var QuoteYou = {
@@ -9794,438 +9565,42 @@ svg.icon {
     }
   };
 
-  class RandomAccessList {
-    constructor(items) {
-      this.length = 0;
-      if (items) { for (var item of items) { this.push(item); } }
+  var ThreadWatcherPage = `<div class="move">
+  Thread Watcher <a class="refresh" title="Check threads" href="javascript:;" title="refresh"></a>
+  <span id="watcher-status"></span>
+  <a class="menu-button" href="javascript:;"></a>
+  <a class="close" href="javascript:;">×</a>
+</div>
+<div id="watched-threads"></div>`;
+
+  class Board {
+    toString() { return this.ID; }
+    constructor(ID) {
+      this.ID = ID;
+      this.boardID = this.ID;
+      this.siteID = g.SITE.ID;
+      this.threads = new SimpleDict();
+      this.posts = new SimpleDict();
+      this.config = BoardConfig.boards?.[this.ID] || {};
+      g.boards[this] = this;
     }
-
-    push(data) {
-      let item;
-      let {ID} = data;
-      if (!ID) { ID = data.id; }
-      if (this[ID]) { return; }
-      const {last} = this;
-      this[ID] = (item = {
-        prev: last,
-        next: null,
-        data,
-        ID
-      });
-      item.prev = last;
-      this.last = last ?
-        (last.next = item)
-      :
-        (this.first = item);
-      return this.length++;
-    }
-
-    before(root, item) {
-      if ((item.next === root) || (item === root)) { return; }
-
-      this.rmi(item);
-
-      const {prev} = root;
-      root.prev = item;
-      item.next = root;
-      item.prev = prev;
-      if (prev) {
-        return prev.next = item;
-      } else {
-        return this.first = item;
+    cooldowns() {
+      const c2 = (this.config || {}).cooldowns || {};
+      const c = {
+        thread: c2.threads || 0,
+        reply: c2.replies || 0,
+        image: c2.images || 0,
+        thread_global: 300 // inter-board thread cooldown
+      };
+      // Pass users have reduced cooldowns.
+      if (d.cookie.indexOf('pass_enabled=1') >= 0) {
+        for (var key of ['reply', 'image']) {
+          c[key] = Math.ceil(c[key] / 2);
+        }
       }
-    }
-
-    after(root, item) {
-      if ((item.prev === root) || (item === root)) { return; }
-
-      this.rmi(item);
-
-      const {next} = root;
-      root.next = item;
-      item.prev = root;
-      item.next = next;
-      if (next) {
-        return next.prev = item;
-      } else {
-        return this.last = item;
-      }
-    }
-
-    prepend(item) {
-      const {first} = this;
-      if ((item === first) || !this[item.ID]) { return; }
-      this.rmi(item);
-      item.next  = first;
-      if (first) {
-        first.prev = item;
-      } else {
-        this.last = item;
-      }
-      this.first = item;
-      return delete item.prev;
-    }
-
-    shift() {
-      return this.rm(this.first.ID);
-    }
-
-    order() {
-      let item;
-      const order = [(item = this.first)];
-      while ((item = item.next)) { order.push(item); }
-      return order;
-    }
-
-    rm(ID) {
-      const item = this[ID];
-      if (!item) { return; }
-      delete this[ID];
-      this.length--;
-      this.rmi(item);
-      delete item.next;
-      return delete item.prev;
-    }
-
-    rmi(item) {
-      const {prev, next} = item;
-      if (prev) {
-        prev.next = next;
-      } else {
-        this.first = next;
-      }
-      if (next) {
-        return next.prev = prev;
-      } else {
-        return this.last = prev;
-      }
+      return c;
     }
   }
-
-  var Unread = {
-    init() {
-      if ((g.VIEW !== 'thread') || (
-        !Conf['Unread Count'] &&
-        !Conf['Unread Favicon'] &&
-        !Conf['Unread Line'] &&
-        !Conf['Remember Last Read Post'] &&
-        !Conf['Desktop Notifications'] &&
-        !Conf['Quote Threading']
-      )) { return; }
-
-      if (Conf['Remember Last Read Post']) {
-        $.sync('Remember Last Read Post', enabled => Conf['Remember Last Read Post'] = enabled);
-        this.db = new DataBoard('lastReadPosts', this.sync);
-      }
-
-      this.hr = $.el('hr', {
-        id: 'unread-line',
-        className: 'unread-line'
-      }
-      );
-      this.posts = new Set();
-      this.postsQuotingYou = new Set();
-      this.order = new RandomAccessList();
-      this.position = null;
-
-      Callbacks.Thread.push({
-        name: 'Unread',
-        cb:   this.node
-      });
-
-      return Callbacks.Post.push({
-        name: 'Unread',
-        cb:   this.addPost
-      });
-    },
-
-    node() {
-      Unread.thread = this;
-      Unread.title  = d.title;
-      Unread.lastReadPost = Unread.db?.get({
-        boardID: this.board.ID,
-        threadID: this.ID
-      }) || 0;
-      Unread.readCount = 0;
-      for (var ID of this.posts.keys) { if (+ID <= Unread.lastReadPost) { Unread.readCount++; } }
-      $.one(d, '4chanXInitFinished', Unread.ready);
-      $.on(d, 'PostsInserted',      Unread.onUpdate);
-      $.on(d, 'ThreadUpdate',       function(e) { if (e.detail[404]) { return Unread.update(); } });
-      const resetLink = $.el('a', {
-        href: 'javascript:;',
-        className: 'unread-reset',
-        textContent: 'Mark all unread'
-      }
-      );
-      $.on(resetLink, 'click', Unread.reset);
-      return Header.menu.addEntry({
-        el: resetLink,
-        order: 70
-      });
-    },
-
-    ready() {
-      if (Conf['Remember Last Read Post'] && Conf['Scroll to Last Read Post']) { Unread.scroll(); }
-      Unread.setLine(true);
-      Unread.read();
-      Unread.update();
-      $.on(d, 'scroll visibilitychange', Unread.read);
-      if (Conf['Unread Line']) { return $.on(d, 'visibilitychange',        Unread.setLine); }
-    },
-
-    positionPrev() {
-      if (Unread.position) { return Unread.position.prev; } else { return Unread.order.last; }
-    },
-
-    scroll() {
-      // Let the header's onload callback handle it.
-      let hash;
-      if ((hash = location.hash.match(/\d+/)) && hash[0] in Unread.thread.posts) { return; }
-
-      let position = Unread.positionPrev();
-      while (position) {
-        var {bottom} = position.data.nodes;
-        if (!bottom.getBoundingClientRect().height) {
-          // Don't try to scroll to posts with display: none
-          position = position.prev;
-        } else {
-          Header.scrollToIfNeeded(bottom, true);
-          break;
-        }
-      }
-    },
-
-    reset() {
-      if (Unread.lastReadPost == null) { return; }
-
-      Unread.posts = new Set();
-      Unread.postsQuotingYou = new Set();
-      Unread.order = new RandomAccessList();
-      Unread.position = null;
-      Unread.lastReadPost = 0;
-      Unread.readCount = 0;
-      Unread.thread.posts.forEach(post => Unread.addPost.call(post));
-
-      $.forceSync('Remember Last Read Post');
-      if (Conf['Remember Last Read Post'] && (!Unread.thread.isDead || Unread.thread.isArchived)) {
-        Unread.db.set({
-          boardID:  Unread.thread.board.ID,
-          threadID: Unread.thread.ID,
-          val:      0
-        });
-      }
-
-      Unread.updatePosition();
-      Unread.setLine();
-      return Unread.update();
-    },
-
-    sync() {
-      if (Unread.lastReadPost == null) { return; }
-      const lastReadPost = Unread.db.get({
-        boardID: Unread.thread.board.ID,
-        threadID: Unread.thread.ID,
-        defaultValue: 0
-      });
-      if (Unread.lastReadPost >= lastReadPost) { return; }
-      Unread.lastReadPost = lastReadPost;
-
-      const postIDs = Unread.thread.posts.keys;
-      for (let i = Unread.readCount, end = postIDs.length; i < end; i++) {
-        var ID = +postIDs[i];
-        if (!Unread.thread.posts.get(ID).isFetchedQuote) {
-          if (ID > Unread.lastReadPost) { break; }
-          Unread.posts.delete(ID);
-          Unread.postsQuotingYou.delete(ID);
-        }
-        Unread.readCount++;
-      }
-
-      Unread.updatePosition();
-      Unread.setLine();
-      return Unread.update();
-    },
-
-    addPost() {
-      if (this.isFetchedQuote || this.isClone) return;
-      Unread.order.push(this);
-      if ((this.ID <= Unread.lastReadPost) || this.isHidden || QuoteYou.isYou(this)) return;
-      Unread.posts.add((Unread.posts.last = this.ID));
-      Unread.addPostQuotingYou(this);
-      return Unread.position != null ? Unread.position : (Unread.position = Unread.order[this.ID]);
-    },
-
-    addPostQuotingYou(post) {
-      for (var quotelink of post.nodes.quotelinks) {
-        if (QuoteYou.db?.get(Get.postDataFromLink(quotelink))) {
-          Unread.postsQuotingYou.add((Unread.postsQuotingYou.last = post.ID));
-          Unread.openNotification(post);
-          return;
-        }
-      }
-    },
-
-    openNotification(post, predicate=' replied to you') {
-      if (!Header.areNotificationsEnabled) { return; }
-      const notif = new Notification(`${post.info.nameBlock}${predicate}`, {
-        body: post.commentDisplay(),
-        icon: Favicon.logo
-      }
-      );
-      notif.onclick = function() {
-        Header.scrollToIfNeeded(post.nodes.bottom, true);
-        return window.focus();
-      };
-      return notif.onshow = () => setTimeout(() => notif.close()
-      , 7 * SECOND);
-    },
-
-    onUpdate() {
-      return $.queueTask(function() { // ThreadUpdater may scroll immediately after inserting posts
-        Unread.setLine();
-        Unread.read();
-        return Unread.update();
-      });
-    },
-
-    readSinglePost(post) {
-      const {ID} = post;
-      if (!Unread.posts.has(ID)) { return; }
-      Unread.posts.delete(ID);
-      Unread.postsQuotingYou.delete(ID);
-      Unread.updatePosition();
-      Unread.saveLastReadPost();
-      return Unread.update();
-    },
-
-    read: debounce(100, function(e) {
-      // Update the lastReadPost when hidden posts are added to the thread.
-      if (!Unread.posts.size && (Unread.readCount !== Unread.thread.posts.keys.length)) {
-        Unread.saveLastReadPost();
-      }
-
-      if (d.hidden || !Unread.posts.size) { return; }
-
-      let count = 0;
-      while (Unread.position) {
-        var {ID, data} = Unread.position;
-        var {bottom} = data.nodes;
-        if (!!bottom.getBoundingClientRect().height && // post has been hidden
-          (Header.getBottomOf(bottom) <= -1)) { break; }                      // post is completely read
-        count++;
-        Unread.posts.delete(ID);
-        Unread.postsQuotingYou.delete(ID);
-        Unread.position = Unread.position.next;
-      }
-
-      if (!count) { return; }
-      Unread.updatePosition();
-      Unread.saveLastReadPost();
-      if (e) { return Unread.update(); }
-    }),
-
-    updatePosition() {
-      while (Unread.position && !Unread.posts.has(Unread.position.ID)) {
-        Unread.position = Unread.position.next;
-      }
-    },
-
-    saveLastReadPost: debounce(2 * SECOND, function() {
-      let ID;
-      $.forceSync('Remember Last Read Post');
-      if (!Conf['Remember Last Read Post'] || !Unread.db) { return; }
-      const postIDs = Unread.thread.posts.keys;
-      for (let i = Unread.readCount, end = postIDs.length; i < end; i++) {
-        ID = +postIDs[i];
-        if (!Unread.thread.posts.get(ID).isFetchedQuote) {
-          if (Unread.posts.has(ID)) { break; }
-          Unread.lastReadPost = ID;
-        }
-        Unread.readCount++;
-      }
-      if (Unread.thread.isDead && !Unread.thread.isArchived) { return; }
-      return Unread.db.set({
-        boardID:  Unread.thread.board.ID,
-        threadID: Unread.thread.ID,
-        val:      Unread.lastReadPost
-      });
-    }),
-
-    setLine(force) {
-      if (!Conf['Unread Line']) { return; }
-      if (Unread.hr.hidden || d.hidden || (force === true)) {
-        const oldPosition = Unread.linePosition;
-        if (Unread.linePosition = Unread.positionPrev()) {
-          if (Unread.linePosition !== oldPosition) {
-            let node = Unread.linePosition.data.nodes.bottom;
-            if (node.nextSibling?.tagName === 'BR') { node = node.nextSibling; }
-            $.after(node, Unread.hr);
-          }
-        } else {
-          $.rm(Unread.hr);
-        }
-      }
-      return Unread.hr.hidden = Unread.linePosition === Unread.order.last;
-    },
-
-    update() {
-      const count = Unread.posts.size;
-      const countQuotingYou = Unread.postsQuotingYou.size;
-
-      if (Conf['Unread Count']) {
-        const titleQuotingYou = Conf['Quoted Title'] && countQuotingYou ? '(!) ' : '';
-        const titleCount = count || !Conf['Hide Unread Count at (0)'] ? `(${count}) ` : '';
-        const titleDead = Unread.thread.isDead ?
-          Unread.title.replace('-', (Unread.thread.isArchived ? '- Archived -' : '- 404 -'))
-        :
-          Unread.title;
-        d.title = `${titleQuotingYou}${titleCount}${titleDead}`;
-      }
-
-      Unread.saveThreadWatcherCount();
-
-      if (Conf['Unread Favicon'] && (g.SITE.software === 'yotsuba')) {
-        const {isDead} = Unread.thread;
-        return Favicon.set((
-          countQuotingYou ?
-            (isDead ? 'unreadDeadY' : 'unreadY')
-          : count ?
-            (isDead ? 'unreadDead' : 'unread')
-          :
-            (isDead ? 'dead' : 'default')
-        )
-        );
-      }
-    },
-
-    saveThreadWatcherCount: debounce(2 * SECOND, function() {
-      $.forceSync('Remember Last Read Post');
-      if (Conf['Remember Last Read Post'] && (!Unread.thread.isDead || Unread.thread.isArchived)) {
-        let posts;
-        const quotingYou = !Conf['Require OP Quote Link'] && QuoteYou.isYou(Unread.thread.OP) ? Unread.posts : Unread.postsQuotingYou;
-        if (!quotingYou.size) {
-          quotingYou.last = 0;
-        } else if (!quotingYou.has(quotingYou.last)) {
-          quotingYou.last = 0;
-          posts = Unread.thread.posts.keys;
-          for (let i = posts.length - 1; i >= 0; i--) {
-            if (quotingYou.has(+posts[i])) {
-              quotingYou.last = posts[i];
-              break;
-            }
-          }
-        }
-        return ThreadWatcher.update(g.SITE.ID, Unread.thread.board.ID, Unread.thread.ID, {
-          last: Unread.thread.lastPost,
-          isDead: Unread.thread.isDead,
-          isArchived: Unread.thread.isArchived,
-          unread: Unread.posts.size,
-          quotingYou: (quotingYou.last || 0)
-        }
-        );
-      }
-    })
-  };
 
   var ExpandThread = {
     statuses: dict(),
@@ -11442,6 +10817,1259 @@ svg.icon {
     }
   };
 
+  var Unread = {
+    init() {
+      if ((g.VIEW !== 'thread') || (
+        !Conf['Unread Count'] &&
+        !Conf['Unread Favicon'] &&
+        !Conf['Unread Line'] &&
+        !Conf['Remember Last Read Post'] &&
+        !Conf['Desktop Notifications'] &&
+        !Conf['Quote Threading']
+      )) { return; }
+
+      if (Conf['Remember Last Read Post']) {
+        $.sync('Remember Last Read Post', enabled => Conf['Remember Last Read Post'] = enabled);
+        this.db = new DataBoard('lastReadPosts', this.sync);
+      }
+
+      this.hr = $.el('hr', {
+        id: 'unread-line',
+        className: 'unread-line'
+      }
+      );
+      this.posts = new Set();
+      this.postsQuotingYou = new Set();
+      this.order = new RandomAccessList();
+      this.position = null;
+
+      Callbacks.Thread.push({
+        name: 'Unread',
+        cb:   this.node
+      });
+
+      return Callbacks.Post.push({
+        name: 'Unread',
+        cb:   this.addPost
+      });
+    },
+
+    node() {
+      Unread.thread = this;
+      Unread.title  = d.title;
+      Unread.lastReadPost = Unread.db?.get({
+        boardID: this.board.ID,
+        threadID: this.ID
+      }) || 0;
+      Unread.readCount = 0;
+      for (var ID of this.posts.keys) { if (+ID <= Unread.lastReadPost) { Unread.readCount++; } }
+      $.one(d, '4chanXInitFinished', Unread.ready);
+      $.on(d, 'PostsInserted',      Unread.onUpdate);
+      $.on(d, 'ThreadUpdate',       function(e) { if (e.detail[404]) { return Unread.update(); } });
+      const resetLink = $.el('a', {
+        href: 'javascript:;',
+        className: 'unread-reset',
+        textContent: 'Mark all unread'
+      }
+      );
+      $.on(resetLink, 'click', Unread.reset);
+      return Header.menu.addEntry({
+        el: resetLink,
+        order: 70
+      });
+    },
+
+    ready() {
+      if (Conf['Remember Last Read Post'] && Conf['Scroll to Last Read Post']) { Unread.scroll(); }
+      Unread.setLine(true);
+      Unread.read();
+      Unread.update();
+      $.on(d, 'scroll visibilitychange', Unread.read);
+      if (Conf['Unread Line']) { return $.on(d, 'visibilitychange',        Unread.setLine); }
+    },
+
+    positionPrev() {
+      if (Unread.position) { return Unread.position.prev; } else { return Unread.order.last; }
+    },
+
+    scroll() {
+      // Let the header's onload callback handle it.
+      let hash;
+      if ((hash = location.hash.match(/\d+/)) && hash[0] in Unread.thread.posts) { return; }
+
+      let position = Unread.positionPrev();
+      while (position) {
+        var {bottom} = position.data.nodes;
+        if (!bottom.getBoundingClientRect().height) {
+          // Don't try to scroll to posts with display: none
+          position = position.prev;
+        } else {
+          Header.scrollToIfNeeded(bottom, true);
+          break;
+        }
+      }
+    },
+
+    reset() {
+      if (Unread.lastReadPost == null) { return; }
+
+      Unread.posts = new Set();
+      Unread.postsQuotingYou = new Set();
+      Unread.order = new RandomAccessList();
+      Unread.position = null;
+      Unread.lastReadPost = 0;
+      Unread.readCount = 0;
+      Unread.thread.posts.forEach(post => Unread.addPost.call(post));
+
+      $.forceSync('Remember Last Read Post');
+      if (Conf['Remember Last Read Post'] && (!Unread.thread.isDead || Unread.thread.isArchived)) {
+        Unread.db.set({
+          boardID:  Unread.thread.board.ID,
+          threadID: Unread.thread.ID,
+          val:      0
+        });
+      }
+
+      Unread.updatePosition();
+      Unread.setLine();
+      return Unread.update();
+    },
+
+    sync() {
+      if (Unread.lastReadPost == null) { return; }
+      const lastReadPost = Unread.db.get({
+        boardID: Unread.thread.board.ID,
+        threadID: Unread.thread.ID,
+        defaultValue: 0
+      });
+      if (Unread.lastReadPost >= lastReadPost) { return; }
+      Unread.lastReadPost = lastReadPost;
+
+      const postIDs = Unread.thread.posts.keys;
+      for (let i = Unread.readCount, end = postIDs.length; i < end; i++) {
+        var ID = +postIDs[i];
+        if (!Unread.thread.posts.get(ID).isFetchedQuote) {
+          if (ID > Unread.lastReadPost) { break; }
+          Unread.posts.delete(ID);
+          Unread.postsQuotingYou.delete(ID);
+        }
+        Unread.readCount++;
+      }
+
+      Unread.updatePosition();
+      Unread.setLine();
+      return Unread.update();
+    },
+
+    addPost() {
+      if (this.isFetchedQuote || this.isClone) return;
+      Unread.order.push(this);
+      if ((this.ID <= Unread.lastReadPost) || this.isHidden || QuoteYou.isYou(this)) return;
+      Unread.posts.add((Unread.posts.last = this.ID));
+      Unread.addPostQuotingYou(this);
+      return Unread.position != null ? Unread.position : (Unread.position = Unread.order[this.ID]);
+    },
+
+    addPostQuotingYou(post) {
+      for (var quotelink of post.nodes.quotelinks) {
+        if (QuoteYou.db?.get(Get.postDataFromLink(quotelink))) {
+          Unread.postsQuotingYou.add((Unread.postsQuotingYou.last = post.ID));
+          Unread.openNotification(post);
+          return;
+        }
+      }
+    },
+
+    openNotification(post, predicate=' replied to you') {
+      if (!Header.areNotificationsEnabled) { return; }
+      const notif = new Notification(`${post.info.nameBlock}${predicate}`, {
+        body: post.commentDisplay(),
+        icon: Favicon.logo
+      }
+      );
+      notif.onclick = function() {
+        Header.scrollToIfNeeded(post.nodes.bottom, true);
+        return window.focus();
+      };
+      return notif.onshow = () => setTimeout(() => notif.close()
+      , 7 * SECOND);
+    },
+
+    onUpdate() {
+      return $.queueTask(function() { // ThreadUpdater may scroll immediately after inserting posts
+        Unread.setLine();
+        Unread.read();
+        return Unread.update();
+      });
+    },
+
+    readSinglePost(post) {
+      const {ID} = post;
+      if (!Unread.posts.has(ID)) { return; }
+      Unread.posts.delete(ID);
+      Unread.postsQuotingYou.delete(ID);
+      Unread.updatePosition();
+      Unread.saveLastReadPost();
+      return Unread.update();
+    },
+
+    read: debounce(100, function(e) {
+      // Update the lastReadPost when hidden posts are added to the thread.
+      if (!Unread.posts.size && (Unread.readCount !== Unread.thread.posts.keys.length)) {
+        Unread.saveLastReadPost();
+      }
+
+      if (d.hidden || !Unread.posts.size) { return; }
+
+      let count = 0;
+      while (Unread.position) {
+        var {ID, data} = Unread.position;
+        var {bottom} = data.nodes;
+        if (!!bottom.getBoundingClientRect().height && // post has been hidden
+          (Header.getBottomOf(bottom) <= -1)) { break; }                      // post is completely read
+        count++;
+        Unread.posts.delete(ID);
+        Unread.postsQuotingYou.delete(ID);
+        Unread.position = Unread.position.next;
+      }
+
+      if (!count) { return; }
+      Unread.updatePosition();
+      Unread.saveLastReadPost();
+      if (e) { return Unread.update(); }
+    }),
+
+    updatePosition() {
+      while (Unread.position && !Unread.posts.has(Unread.position.ID)) {
+        Unread.position = Unread.position.next;
+      }
+    },
+
+    saveLastReadPost: debounce(2 * SECOND, function() {
+      let ID;
+      $.forceSync('Remember Last Read Post');
+      if (!Conf['Remember Last Read Post'] || !Unread.db) { return; }
+      const postIDs = Unread.thread.posts.keys;
+      for (let i = Unread.readCount, end = postIDs.length; i < end; i++) {
+        ID = +postIDs[i];
+        if (!Unread.thread.posts.get(ID).isFetchedQuote) {
+          if (Unread.posts.has(ID)) { break; }
+          Unread.lastReadPost = ID;
+        }
+        Unread.readCount++;
+      }
+      if (Unread.thread.isDead && !Unread.thread.isArchived) { return; }
+      return Unread.db.set({
+        boardID:  Unread.thread.board.ID,
+        threadID: Unread.thread.ID,
+        val:      Unread.lastReadPost
+      });
+    }),
+
+    setLine(force) {
+      if (!Conf['Unread Line']) { return; }
+      if (Unread.hr.hidden || d.hidden || (force === true)) {
+        const oldPosition = Unread.linePosition;
+        if (Unread.linePosition = Unread.positionPrev()) {
+          if (Unread.linePosition !== oldPosition) {
+            let node = Unread.linePosition.data.nodes.bottom;
+            if (node.nextSibling?.tagName === 'BR') { node = node.nextSibling; }
+            $.after(node, Unread.hr);
+          }
+        } else {
+          $.rm(Unread.hr);
+        }
+      }
+      return Unread.hr.hidden = Unread.linePosition === Unread.order.last;
+    },
+
+    update() {
+      const count = Unread.posts.size;
+      const countQuotingYou = Unread.postsQuotingYou.size;
+
+      if (Conf['Unread Count']) {
+        const titleQuotingYou = Conf['Quoted Title'] && countQuotingYou ? '(!) ' : '';
+        const titleCount = count || !Conf['Hide Unread Count at (0)'] ? `(${count}) ` : '';
+        const titleDead = Unread.thread.isDead ?
+          Unread.title.replace('-', (Unread.thread.isArchived ? '- Archived -' : '- 404 -'))
+        :
+          Unread.title;
+        d.title = `${titleQuotingYou}${titleCount}${titleDead}`;
+      }
+
+      Unread.saveThreadWatcherCount();
+
+      if (Conf['Unread Favicon'] && (g.SITE.software === 'yotsuba')) {
+        const {isDead} = Unread.thread;
+        return Favicon.set((
+          countQuotingYou ?
+            (isDead ? 'unreadDeadY' : 'unreadY')
+          : count ?
+            (isDead ? 'unreadDead' : 'unread')
+          :
+            (isDead ? 'dead' : 'default')
+        )
+        );
+      }
+    },
+
+    saveThreadWatcherCount: debounce(2 * SECOND, function() {
+      $.forceSync('Remember Last Read Post');
+      if (Conf['Remember Last Read Post'] && (!Unread.thread.isDead || Unread.thread.isArchived)) {
+        let posts;
+        const quotingYou = !Conf['Require OP Quote Link'] && QuoteYou.isYou(Unread.thread.OP) ? Unread.posts : Unread.postsQuotingYou;
+        if (!quotingYou.size) {
+          quotingYou.last = 0;
+        } else if (!quotingYou.has(quotingYou.last)) {
+          quotingYou.last = 0;
+          posts = Unread.thread.posts.keys;
+          for (let i = posts.length - 1; i >= 0; i--) {
+            if (quotingYou.has(+posts[i])) {
+              quotingYou.last = posts[i];
+              break;
+            }
+          }
+        }
+        return ThreadWatcher.update(g.SITE.ID, Unread.thread.board.ID, Unread.thread.ID, {
+          last: Unread.thread.lastPost,
+          isDead: Unread.thread.isDead,
+          isArchived: Unread.thread.isArchived,
+          unread: Unread.posts.size,
+          quotingYou: (quotingYou.last || 0)
+        }
+        );
+      }
+    })
+  };
+
+  /*
+    <3 aeosynth
+  */
+  const MAX_CLONES_PER_POST = 10;
+  var QuoteThreading = {
+    init() {
+      if (!Conf['Quote Threading'] || (g.VIEW !== 'thread')) {
+        return;
+      }
+      doc.classList.toggle('thread-quotes', !!Conf['Thread Quotes']);
+      this.controls = $.el('label', { innerHTML: "<input id=\"threadingControl\" name=\"Thread Quotes\" type=\"checkbox\"> Threading" });
+      this.threadNewLink = $.el('span', {
+        className: 'brackets-wrap threadnewlink',
+        hidden: true
+      });
+      $.extend(this.threadNewLink, { innerHTML: "<a href=\"javascript:;\">Thread New Posts</a>" });
+      this.input = $('input', this.controls);
+      this.input.checked = Conf['Thread Quotes'];
+      $.on(this.input, 'change', this.setEnabled);
+      $.on(this.input, 'change', this.rethread);
+      $.on(this.threadNewLink.firstElementChild, 'click', this.rethread);
+      $.on(d, '4chanXInitFinished', () => { this.ready = true; });
+      Header.menu.addEntry(this.entry = {
+        el: this.controls,
+        order: 99
+      });
+      Callbacks.Thread.push({
+        name: 'Quote Threading',
+        cb: this.setThread
+      });
+      Callbacks.Post.push({
+        name: 'Quote Threading',
+        cb: this.node
+      });
+    },
+    controls: undefined,
+    threadNewLink: undefined,
+    input: undefined,
+    entry: undefined,
+    ready: false,
+    thread: undefined,
+    parent: dict(),
+    parents: dict(),
+    children: dict(),
+    clonesByPost: dict(),
+    treeClones: [],
+    inserted: dict(),
+    toggleThreading() {
+      this.setThreadingState(!Conf['Thread Quotes']);
+    },
+    setThreadingState(enabled) {
+      this.input.checked = enabled;
+      this.setEnabled.call(this.input);
+      this.rethread.call(this.input);
+    },
+    setEnabled() {
+      if (this.checked) {
+        $.set('Prune All Threads', false);
+        const other = ReplyPruning.inputs?.enabled;
+        if (other?.checked) {
+          other.checked = false;
+          $.event('change', null, other);
+        }
+      }
+      $.cb.checked.call(this);
+    },
+    setThread() {
+      QuoteThreading.thread = this;
+      $.asap((() => !Conf['Thread Updater'] || $('.navLinksBot > .updatelink')), function () {
+        let navLinksBot;
+        if (navLinksBot = $('.navLinksBot')) {
+          $.add(navLinksBot, [$.tn(' '), QuoteThreading.threadNewLink]);
+        }
+      });
+    },
+    node() {
+      if (this.isFetchedQuote || this.isClone || !this.isReply) {
+        return;
+      }
+      const parentMap = new Map();
+      for (var quote of this.quotes) {
+        const parent = g.posts.get(quote);
+        if (parent && !parent.isFetchedQuote && parent.isReply && (parent.ID < this.ID)) {
+          parentMap.set(parent.ID, parent);
+        }
+      }
+      if (!parentMap.size)
+        return;
+      const sortedParents = [...parentMap.values()].sort((a, b) => a.ID - b.ID);
+      // Prune any quoted post that is already an ancestor of another quoted post in this set.
+      const ancestorIDs = new Set();
+      const visited = new Set();
+      for (const p of sortedParents) {
+        const stack = [...(QuoteThreading.parents[p.fullID] || [])];
+        while (stack.length) {
+          const anc = stack.pop();
+          if (visited.has(anc.fullID))
+            continue;
+          visited.add(anc.fullID);
+          ancestorIDs.add(anc.ID);
+          if (QuoteThreading.parents[anc.fullID]) {
+            stack.push(...QuoteThreading.parents[anc.fullID]);
+          }
+        }
+      }
+      const branchParents = sortedParents.filter(p => !ancestorIDs.has(p.ID));
+      if (!branchParents.length)
+        return;
+      QuoteThreading.parents[this.fullID] = branchParents;
+      QuoteThreading.parent[this.fullID] = branchParents[branchParents.length - 1];
+    },
+    descendants(post) {
+      let children;
+      let posts = [post];
+      if (children = (post.treeChildren || QuoteThreading.children[post.fullID])) {
+        for (var child of children) {
+          posts = posts.concat(QuoteThreading.descendants(child));
+        }
+      }
+      return posts;
+    },
+    getDescendantCount(post) {
+      const children = post.treeChildren || (!post.isClone ? QuoteThreading.children[post.fullID] : undefined);
+      if (!children || !children.length)
+        return 0;
+      let count = 0;
+      for (const child of children) {
+        count += 1 + QuoteThreading.getDescendantCount(child);
+      }
+      return count;
+    },
+    updateStubCount(post) {
+      const stub = post.nodes.stub;
+      if (!stub)
+        return;
+      const a = $('a.show-reply-button', stub);
+      if (!a)
+        return;
+      let idSpan = $('.stub-id', a);
+      if (Conf['Quote Threading'] && Conf['Thread Quotes']) {
+        if (!idSpan) {
+          idSpan = $.el('span', { className: 'stub-id', textContent: ` No.${post.ID}` });
+          const nameSpan = $('.stub-name', a);
+          if (nameSpan) {
+            $.after(nameSpan, idSpan);
+          } else {
+            $.add(a, idSpan);
+          }
+        }
+        const count = QuoteThreading.getDescendantCount(post);
+        let repliesSpan = $('.stub-replies', a);
+        if (count > 0) {
+          const text = `(+${count} repl${count === 1 ? 'y' : 'ies'})`;
+          if (!repliesSpan) {
+            repliesSpan = $.el('span', { className: 'stub-replies', textContent: text });
+            const reasonsSpan = $('.stub-reasons', a);
+            if (reasonsSpan) {
+              $.before(reasonsSpan, repliesSpan);
+            } else {
+              $.add(a, repliesSpan);
+            }
+          } else {
+            repliesSpan.textContent = text;
+          }
+        } else if (repliesSpan) {
+          $.rm(repliesSpan);
+        }
+      } else {
+        if (idSpan)
+          $.rm(idSpan);
+        const repliesSpan = $('.stub-replies', a);
+        if (repliesSpan)
+          $.rm(repliesSpan);
+      }
+    },
+    collapseFromBranch(post) {
+      if (!post.isHidden) {
+        PostHiding.hide(post, true, false, 'Hidden manually');
+        if (!post.isClone) {
+          PostHiding.saveHiddenState(post, true, true, true, false);
+        }
+      }
+      if (post.nodes.root.getBoundingClientRect().top < 0) {
+        Header.scrollToIfNeeded(post.nodes.root, false);
+      }
+    },
+    createTreeClone(post) {
+      const origin = post.origin || post;
+      const clone = origin.addClone(origin, false);
+      clone.isTreeClone = true;
+      $.addClass(clone.nodes.root, 'treeClone');
+      Main.callbackNodes('Post', [clone]);
+      const list = QuoteThreading.clonesByPost[origin.fullID] || (QuoteThreading.clonesByPost[origin.fullID] = []);
+      list.push(clone);
+      QuoteThreading.treeClones.push(clone);
+      return clone;
+    },
+    cloneSubtree(source, targetParent) {
+      const children = source.treeChildren;
+      if (!children || !children.length)
+        return;
+      for (const child of children) {
+        const originChild = child.origin || child;
+        const existingClones = QuoteThreading.clonesByPost[originChild.fullID] || [];
+        if (existingClones.length >= MAX_CLONES_PER_POST)
+          continue;
+        const childClone = QuoteThreading.createTreeClone(originChild);
+        QuoteThreading.insertIntoContainer(childClone, targetParent, false);
+        QuoteThreading.cloneSubtree(child, childClone);
+      }
+    },
+    insertIntoContainer(childInstance, parentInstance, isPrimary) {
+      let x;
+      const children = parentInstance.treeChildren || (parentInstance.treeChildren = []);
+      if (isPrimary && !parentInstance.isClone) {
+        QuoteThreading.children[parentInstance.fullID] = children;
+      }
+      childInstance.treeParent = parentInstance;
+      let threadContainer = parentInstance.nodes.threadContainer;
+      if (!threadContainer) {
+        threadContainer = $.el('div', { className: 'threadContainer' });
+        const branchLink = $.el('a', {
+          className: 'threadBranchLink',
+          href: 'javascript:;',
+          title: 'Collapse branch'
+        });
+        $.on(branchLink, 'click', (e) => {
+          e.preventDefault();
+          QuoteThreading.collapseFromBranch(parentInstance);
+        });
+        $.add(threadContainer, branchLink);
+      }
+      const nodes = [childInstance.nodes.root];
+      if (childInstance.nodes.threadContainer) {
+        nodes.push(childInstance.nodes.threadContainer);
+      }
+      let i = children.length;
+      for (let j = children.length - 1; j >= 0; j--) {
+        const child = children[j];
+        if (child.ID >= childInstance.ID) {
+          i--;
+        }
+      }
+      if (i !== children.length) {
+        const next = children[i];
+        if (isPrimary) {
+          const { order } = Unread;
+          const descendants = QuoteThreading.descendants(childInstance);
+          for (x of descendants) {
+            if (order[next.ID] && order[x.ID]) {
+              order.before(order[next.ID], order[x.ID]);
+            }
+          }
+        }
+        children.splice(i, 0, childInstance);
+        $.before(next.nodes.root, nodes);
+      } else {
+        if (isPrimary) {
+          const { order } = Unread;
+          const descendants = QuoteThreading.descendants(childInstance);
+          let prev2;
+          let prev = parentInstance;
+          while ((prev2 = prev.treeChildren || QuoteThreading.children[prev.fullID]) && prev2.length) {
+            prev = prev2[prev2.length - 1];
+          }
+          for (let k = descendants.length - 1; k >= 0; k--) {
+            x = descendants[k];
+            if (order[prev.ID] && order[x.ID]) {
+              order.after(order[prev.ID], order[x.ID]);
+            }
+          }
+        }
+        children.push(childInstance);
+        $.add(threadContainer, nodes);
+      }
+      if (!parentInstance.nodes.threadContainer) {
+        parentInstance.nodes.threadContainer = threadContainer;
+        $.addClass(parentInstance.nodes.root, 'threadOP');
+        if (parentInstance.isHidden) {
+          threadContainer.hidden = true;
+        }
+        $.after(parentInstance.nodes.root, threadContainer);
+      }
+      let anc = parentInstance;
+      while (anc) {
+        if (anc.isHidden && anc.nodes.stub) {
+          QuoteThreading.updateStubCount(anc);
+        }
+        anc = anc.treeParent;
+      }
+    },
+    insert(post, force = false) {
+      let parent;
+      if (!(Conf['Thread Quotes'] &&
+        (parent = QuoteThreading.parent[post.fullID]) &&
+        !QuoteThreading.inserted[post.fullID])) {
+        return false;
+      }
+      const descendants = QuoteThreading.descendants(post);
+      if (!force && QuoteThreading.ready && !Unread.posts.has(parent.ID)) {
+        if ((function () { for (var x of descendants) {
+          if (Unread.posts.has(x.ID)) {
+            return true;
+          }
+        } })()) {
+          QuoteThreading.threadNewLink.hidden = false;
+          return false;
+        }
+      }
+      QuoteThreading.insertIntoContainer(post, parent, true);
+      // Gather additional parent instances (clones of primary parent, plus secondary parents and their clones)
+      const extraParentInstances = [];
+      const primaryClones = QuoteThreading.clonesByPost[parent.fullID];
+      if (primaryClones?.length) {
+        extraParentInstances.push(...primaryClones);
+      }
+      const allParents = QuoteThreading.parents[post.fullID] || [parent];
+      for (const secParent of allParents) {
+        if (secParent === parent)
+          continue;
+        if (QuoteThreading.inserted[secParent.fullID] || !QuoteThreading.parent[secParent.fullID]) {
+          extraParentInstances.push(secParent);
+        }
+        const secClones = QuoteThreading.clonesByPost[secParent.fullID];
+        if (secClones?.length) {
+          extraParentInstances.push(...secClones);
+        }
+      }
+      for (const targetParent of extraParentInstances) {
+        const existingClones = QuoteThreading.clonesByPost[post.fullID] || [];
+        if (existingClones.length >= MAX_CLONES_PER_POST)
+          break;
+        const clone = QuoteThreading.createTreeClone(post);
+        QuoteThreading.insertIntoContainer(clone, targetParent, false);
+        QuoteThreading.cloneSubtree(post, clone);
+      }
+      QuoteThreading.inserted[post.fullID] = true;
+      return true;
+    },
+    rethread() {
+      if (!QuoteThreading.ready) {
+        return;
+      }
+      const { thread } = QuoteThreading;
+      const { posts } = thread;
+      doc.classList.toggle('thread-quotes', !!Conf['Thread Quotes']);
+      QuoteThreading.threadNewLink.hidden = true;
+      if (Conf['Thread Quotes']) {
+        posts.forEach(post => {
+          QuoteThreading.insert(post, true);
+          if (post.isHidden) {
+            if (post.nodes.threadContainer) {
+              post.nodes.threadContainer.hidden = true;
+            }
+            QuoteThreading.updateStubCount(post);
+          }
+        });
+      } else {
+        for (const clone of QuoteThreading.treeClones) {
+          if (clone.nodes.threadContainer) {
+            $.rm(clone.nodes.threadContainer);
+            delete clone.nodes.threadContainer;
+          }
+          $.rm(clone.nodes.root);
+          const idx = clone.origin.clones.indexOf(clone);
+          if (idx !== -1) {
+            clone.origin.rmClone(idx);
+          }
+        }
+        QuoteThreading.treeClones = [];
+        QuoteThreading.clonesByPost = dict();
+        const nodes = [];
+        Unread.order = new RandomAccessList();
+        QuoteThreading.inserted = dict();
+        posts.forEach(function (post) {
+          if (post.isFetchedQuote) {
+            return;
+          }
+          Unread.order.push(post);
+          if (post.isReply) {
+            nodes.push(post.nodes.root);
+          }
+          delete post.treeChildren;
+          delete post.treeParent;
+          if (QuoteThreading.children[post.fullID]) {
+            delete QuoteThreading.children[post.fullID];
+          }
+          if (post.nodes.threadContainer) {
+            $.rmClass(post.nodes.root, 'threadOP');
+            $.rm(post.nodes.threadContainer);
+            delete post.nodes.threadContainer;
+          }
+          if (post.isHidden && post.nodes.stub) {
+            QuoteThreading.updateStubCount(post);
+          }
+        });
+        $.add(thread.nodes.root, nodes);
+      }
+      Unread.position = Unread.order.first;
+      Unread.updatePosition();
+      Unread.setLine(true);
+      Unread.read();
+      Unread.update();
+    },
+  };
+
+  var PostHiding = {
+    db: undefined,
+    /** poster Ids to filter */
+    posterIdDb: undefined,
+    init() {
+      if (!['index', 'thread'].includes(g.VIEW) || (!Conf['Reply Hiding Buttons'] && !Conf['Quote Threading'] && !(Conf['Menu'] && Conf['Reply Hiding Link']))) {
+        return;
+      }
+      if (Conf['Reply Hiding Buttons'] || Conf['Quote Threading']) {
+        $.addClass(doc, "reply-hide");
+      }
+      this.db = new DataBoard('hiddenPosts');
+      this.posterIdDb = new DataBoard('hiddenPosterIds');
+      Callbacks.Post.push({
+        name: 'Reply Hiding',
+        cb: this.node
+      });
+    },
+    isHidden(boardID, threadID, postID) {
+      return !!(PostHiding.db && PostHiding.db.get({ boardID, threadID, postID }));
+    },
+    node() {
+      if (!this.isReply || this.isFetchedQuote)
+        return;
+      if (this.isClone) {
+        if (!this.isTreeClone)
+          return;
+        const hideBtn = $('.hide-reply-button', this.nodes.root);
+        if (hideBtn) {
+          $.on(hideBtn, 'click', PostHiding.toggle);
+        }
+        if (this.origin.isHidden) {
+          PostHiding.hide(this, Conf['Stubs'], false);
+        }
+        return;
+      }
+      let data = PostHiding.db.get({ boardID: this.board.ID, threadID: this.thread.ID, postID: this.ID });
+      if (!data && this.info.uniqueID) {
+        const hiddenPosterIds = PostHiding.posterIdDb.get({ boardID: this.board.ID, threadID: this.thread.ID });
+        if (hiddenPosterIds && this.info.uniqueID in hiddenPosterIds) {
+          data = hiddenPosterIds[this.info.uniqueID];
+          // thisPost is only on the first hidden posts, it shouldn't apply when hiding on poster ID
+          data.thisPost = true;
+        }
+      }
+      if (data) {
+        if (data.thisPost) {
+          PostHiding.hide(this, data.makeStub, data.hideRecursively, 'Hidden manually');
+        } else if (!(Conf['Quote Threading'] && Conf['Thread Quotes'])) {
+          PostHiding.hideRecursive(this, data.makeStub);
+        }
+      }
+      if (!Conf['Reply Hiding Buttons'] && !Conf['Quote Threading']) {
+        return;
+      }
+      const button = PostHiding.makeButton(this, 'hide');
+      const sa = g.SITE.selectors.sideArrows;
+      if (sa) {
+        const sideArrows = $(sa, this.nodes.root);
+        $.replace(sideArrows.firstChild, button);
+        sideArrows.className = 'replacedSideArrows';
+      } else {
+        $.prepend(this.nodes.info, button);
+      }
+    },
+    menu: {
+      post: undefined,
+      async init() {
+        if (!['index', 'thread'].includes(g.VIEW) || !Conf['Menu'] || !Conf['Reply Hiding Link'])
+          return;
+        await new Promise(res => BoardConfig.ready(res));
+        // Hide
+        let applyHide = $.el('a', {
+          textContent: 'Apply',
+          href: 'javascript:;'
+        });
+        $.on(applyHide, 'click', PostHiding.menu.hide);
+        const hideOptions = [
+          { el: applyHide },
+          { el: UI.checkbox('thisPost', 'This post', true) },
+          { el: UI.checkbox('replies', 'Hide replies', Conf['Recursive Hiding']) },
+          { el: UI.checkbox('makeStub', 'Make stub', Conf['Stubs']) },
+        ];
+        if (g.BOARD.config.user_ids) {
+          hideOptions.push({ el: UI.checkbox('byId', 'By poster id', false) });
+        }
+        Menu.menu.addEntry({
+          el: $.el('div', {
+            className: 'hide-reply-link',
+            textContent: 'Hide'
+          }),
+          order: 20,
+          open(post) {
+            if (!post.isReply || post.isClone || post.isHidden) {
+              return false;
+            }
+            PostHiding.menu.post = post;
+            return true;
+          },
+          subEntries: hideOptions
+        });
+        // Show
+        const applyShow = $.el('a', {
+          textContent: 'Apply',
+          href: 'javascript:;'
+        });
+        $.on(applyShow, 'click', PostHiding.menu.show);
+        const thisPost = UI.checkbox('thisPost', 'This post', false);
+        const replies = UI.checkbox('replies', 'Show replies', false);
+        const hideStubLink = $.el('a', {
+          textContent: 'Hide stub',
+          href: 'javascript:;'
+        });
+        $.on(hideStubLink, 'click', PostHiding.menu.hideStub);
+        const showOptions = [
+          { el: applyShow },
+          { el: thisPost },
+          { el: replies },
+        ];
+        let byId;
+        if (g.BOARD.config.user_ids) {
+          byId = UI.checkbox('byId', 'By poster id', false);
+          showOptions.push({ el: byId });
+        }
+        Menu.menu.addEntry({
+          el: $.el('div', {
+            className: 'show-reply-link',
+            textContent: 'Show'
+          }),
+          order: 20,
+          open(post) {
+            if (!post.isReply || post.isClone || !post.isHidden) {
+              return false;
+            }
+            const data = PostHiding.db.get({ boardID: post.board.ID, threadID: post.thread.ID, postID: post.ID });
+            if (!data)
+              return false;
+            PostHiding.menu.post = post;
+            thisPost.firstChild.checked = post.isHidden;
+            replies.firstChild.checked = data.hideRecursively ?? Conf['Recursive Hiding'];
+            if (byId)
+              byId.firstChild.checked = data.byId;
+            return true;
+          },
+          subEntries: showOptions
+        });
+        Menu.menu.addEntry({
+          el: hideStubLink,
+          order: 15,
+          open(post) {
+            if (!post.isReply || post.isClone || !post.isHidden) {
+              return false;
+            }
+            if (!(PostHiding.db.get({ boardID: post.board.ID, threadID: post.thread.ID, postID: post.ID }))) {
+              return false;
+            }
+            return PostHiding.menu.post = post;
+          }
+        });
+      },
+      hide() {
+        const parent = this.parentNode;
+        const thisPost = $('input[name=thisPost]', parent).checked;
+        const replies = $('input[name=replies]', parent).checked;
+        const makeStub = $('input[name=makeStub]', parent).checked;
+        const byId = $('input[name=byId]', parent)?.checked;
+        const { post } = PostHiding.menu;
+        if (!thisPost && !replies && !byId)
+          return;
+        if (thisPost) {
+          PostHiding.hide(post, makeStub, replies, 'Hidden manually');
+        } else if (replies) {
+          PostHiding.hideRecursive(post, makeStub);
+        }
+        if (byId) {
+          const msg = `Hidden because of poster ID ${post.info.uniqueID}`;
+          g.posts.forEach((p) => {
+            if (p.info.uniqueID === post.info.uniqueID && p !== post) {
+              PostHiding.hide(p, makeStub, replies, msg);
+              PostHiding.saveHiddenState(p, true, thisPost, makeStub, replies, byId);
+            }
+          });
+          const data = PostHiding.posterIdDb.get({ boardID: post.boardID, threadID: post.threadID, defaultValue: dict() });
+          if (!(post.info.uniqueID in data)) {
+            data[post.info.uniqueID] = { makeStub, hideRecursively: replies };
+            PostHiding.posterIdDb.set({ boardID: post.boardID, threadID: post.threadID, val: data });
+          }
+        }
+        PostHiding.saveHiddenState(post, true, thisPost, makeStub, replies, byId);
+        $.event('CloseMenu');
+      },
+      show() {
+        const parent = this.parentNode;
+        const thisPost = $('input[name=thisPost]', parent).checked;
+        const replies = $('input[name=replies]', parent).checked;
+        const byId = $('input[name=byId]', parent)?.checked;
+        const { post } = PostHiding.menu;
+        const { boardID, threadID, postID } = post;
+        if (!thisPost && !replies && !byId)
+          return;
+        if (thisPost) {
+          PostHiding.show(post, replies);
+        } else if (replies) {
+          Recursive.apply(PostHiding.show, post, true);
+          Recursive.rm(PostHiding.hide, post);
+        }
+        if (byId) {
+          g.posts.forEach((p) => {
+            if (p.info.uniqueID === post.info.uniqueID && p !== post) {
+              PostHiding.show(p, replies);
+              const data = PostHiding.db.get({ boardID, threadID, postID });
+              if (data) {
+                PostHiding.saveHiddenState(post, !(thisPost && replies), !thisPost, data.makeStub, !replies, byId);
+              }
+            }
+          });
+          const byIdState = PostHiding.posterIdDb.get({ boardID, threadID });
+          if (byIdState && post.info.uniqueID in byIdState) {
+            delete byIdState[post.info.uniqueID];
+            PostHiding.posterIdDb.set({ boardID, threadID, val: byIdState });
+          }
+        }
+        const data = PostHiding.db.get({ boardID, threadID, postID });
+        if (data) {
+          PostHiding.saveHiddenState(post, !(thisPost && replies), !thisPost, data.makeStub, !replies, byId);
+        }
+        $.event('CloseMenu');
+      },
+      hideStub() {
+        let data;
+        const { post } = PostHiding.menu;
+        if (data = PostHiding.db.get({ boardID: post.board.ID, threadID: post.thread.ID, postID: post.ID })) {
+          PostHiding.show(post, data.hideRecursively);
+          PostHiding.hide(post, false, data.hideRecursively);
+          PostHiding.saveHiddenState(post, true, true, false, data.hideRecursively, data.byId);
+        }
+        $.event('CloseMenu');
+      }
+    },
+    makeButton(post, type) {
+      const span = $.el('span', {
+        className: 'stub-icon',
+      });
+      const a = $.el('a', {
+        className: `${type}-post-button ${type}-reply-button`,
+        href: 'javascript:;'
+      });
+      Icon.set(span, type === 'hide' ? 'squareMinus' : 'squarePlus');
+      $.add(a, span);
+      $.on(a, 'click', PostHiding.toggle);
+      return a;
+    },
+    saveHiddenState(post, isHiding, thisPost, makeStub, hideRecursively, byId) {
+      const data = {
+        boardID: post.board.ID,
+        threadID: post.thread.ID,
+        postID: post.ID
+      };
+      if (isHiding) {
+        data.val = {
+          thisPost: thisPost !== false, // undefined -> true
+          makeStub,
+          hideRecursively,
+          byId
+        };
+        PostHiding.db.set(data);
+      } else {
+        PostHiding.db.delete(data);
+      }
+    },
+    toggle() {
+      const post = Get.postFromNode(this);
+      const isThreaded = Conf['Quote Threading'] && Conf['Thread Quotes'];
+      if (post.isHidden) {
+        PostHiding.show(post);
+      } else {
+        PostHiding.hide(post, isThreaded ? true : undefined, isThreaded ? false : undefined, 'Hidden manually');
+      }
+      if (!post.isClone) {
+        PostHiding.saveHiddenState(post, post.isHidden);
+      }
+    },
+    hide(post, makeStub = Conf['Stubs'], hideRecursively = Conf['Recursive Hiding'], reason) {
+      if (post.isHidden)
+        return;
+      post.isHidden = true;
+      const isThreaded = Conf['Quote Threading'] && Conf['Thread Quotes'];
+      if (isThreaded) {
+        makeStub = true;
+        hideRecursively = false;
+      }
+      if (post.nodes.threadContainer) {
+        post.nodes.threadContainer.hidden = true;
+      }
+      if (hideRecursively) {
+        PostHiding.hideRecursive(post, makeStub);
+      }
+      if (!isThreaded || reason !== 'Hidden manually') {
+        for (var quotelink of Get.allQuotelinksLinkingTo(post)) {
+          $.addClass(quotelink, 'filtered');
+        }
+      }
+      if (!makeStub) {
+        post.nodes.root.hidden = true;
+        return;
+      }
+      post.nodes.stub = $.el('div', { className: 'stub' });
+      const a = PostHiding.makeButton(post, 'show');
+      $.add(a, $.el('span', { className: 'stub-name', textContent: post.info.nameBlock }));
+      let reasons = post.filterResults?.reasons || [];
+      if (reason && (!isThreaded || reason !== 'Hidden manually')) {
+        reasons = [...reasons, reason];
+      }
+      if (Conf['Filter Reason'] && reasons.length) {
+        const reasonsSpan = $.el('span', { className: 'stub-reasons' });
+        $.add(reasonsSpan, reasons.map(re => $.el('span', { className: 'stub-reason', textContent: re })));
+        a.appendChild(reasonsSpan);
+      }
+      $.add(post.nodes.stub, a);
+      if (!Conf['Filter Reason'] && reasons.length)
+        post.nodes.stub.title = reasons.join(' & ');
+      if (Conf['Menu']) {
+        $.add(post.nodes.stub, Menu.makeButton(post));
+      }
+      QuoteThreading.updateStubCount(post);
+      $.prepend(post.nodes.root, post.nodes.stub);
+    },
+    hideRecursive(post, makeStub) {
+      Recursive.applyAndAdd(PostHiding.hide, post, makeStub, true, `Hidden recursively from ${post.ID}`);
+    },
+    show(post, showRecursively = Conf['Recursive Hiding']) {
+      if (post.nodes.stub) {
+        $.rm(post.nodes.stub);
+        delete post.nodes.stub;
+      } else {
+        post.nodes.root.hidden = false;
+      }
+      if (post.nodes.threadContainer) {
+        post.nodes.threadContainer.hidden = false;
+      }
+      post.isHidden = false;
+      if (showRecursively && !(Conf['Quote Threading'] && Conf['Thread Quotes'])) {
+        Recursive.apply(PostHiding.show, post, true);
+        Recursive.rm(PostHiding.hide, post);
+      }
+      for (var quotelink of Get.allQuotelinksLinkingTo(post)) {
+        $.rmClass(quotelink, 'filtered');
+      }
+    }
+  };
+
+  var RelativeDates = {
+    INTERVAL: 30000,
+    init() {
+      if ((['index', 'thread', 'archive'].includes(g.VIEW) &&
+        ['Show', 'Both', 'BothRelativeFirst'].includes(Conf.RelativeTime)) ||
+        Index.enabled) {
+        this.flush();
+        $.on(d, 'visibilitychange PostsInserted', this.flush);
+      }
+      if (Conf.RelativeTime !== 'No') {
+        return Callbacks.Post.push({
+          name: 'Relative Post Dates',
+          cb: this.node
+        });
+      }
+    },
+    node() {
+      if (!this.info.date) {
+        return;
+      }
+      const dateEl = this.nodes.date;
+      if (Conf.RelativeTime === 'Hover') {
+        $.on(dateEl, 'mouseover', () => RelativeDates.hover(this));
+        return;
+      }
+      if (this.isClone) {
+        return;
+      }
+      // Show original absolute time as tooltip so users can still know exact times
+      // Since "Time Formatting" runs its `node` before us, the title tooltip will
+      // pick up the user-formatted time instead of 4chan time when enabled.
+      if (Conf.RelativeTime === 'Show') {
+        dateEl.dataset.fullTime = dateEl.textContent;
+        dateEl.title = dateEl.textContent;
+      }
+      return RelativeDates.update(this);
+    },
+    /** @param diff is milliseconds from now. */
+    relative(diff, now, date, abbrev) {
+      let number;
+      let unit;
+      if ((number = (diff / DAY)) >= 1) {
+        const years = now.getFullYear() - date.getFullYear();
+        let months = now.getMonth() - date.getMonth();
+        const days = now.getDate() - date.getDate();
+        if (years > 1) {
+          number = years - ((months < 0) || ((months === 0) && (days < 0)));
+          unit = 'year';
+        } else if ((years === 1) && ((months > 0) || ((months === 0) && (days >= 0)))) {
+          number = years;
+          unit = 'year';
+        } else if ((months = months + (12 * years)) > 1) {
+          number = months - (days < 0);
+          unit = 'month';
+        } else if ((months === 1) && (days >= 0)) {
+          number = months;
+          unit = 'month';
+        } else {
+          unit = 'day';
+        }
+      } else if ((number = (diff / HOUR)) >= 1) {
+        unit = 'hour';
+      } else if ((number = (diff / MINUTE)) >= 1) {
+        unit = 'minute';
+      } else {
+        // prevent "-1 seconds ago"
+        number = Math.max(0, diff) / SECOND;
+        unit = 'second';
+      }
+      const rounded = Math.round(number);
+      if (abbrev) {
+        unit = unit === 'month' ? 'mo' : unit[0];
+      } else {
+        if (rounded !== 1) {
+          unit += 's';
+        } // pluralize
+      }
+      if (abbrev) {
+        return `${rounded}${unit}`;
+      } else {
+        return `${rounded} ${unit} ago`;
+      }
+    },
+    // Changing all relative dates as soon as possible incurs many annoying
+    // redraws and scroll stuttering. Thus, sacrifice accuracy for UX/CPU economy,
+    // and perform redraws when the DOM is otherwise being manipulated (and scroll
+    // stuttering won't be noticed), falling back to INTERVAL while the page
+    // is visible.
+    //
+    // Each individual dateTime element will add its update() function to the stale list
+    // when it is to be called.
+    stale: [],
+    timeout: undefined,
+    flush() {
+      // No point in changing the dates until the user sees them.
+      if (d.hidden) {
+        return;
+      }
+      const now = new Date();
+      for (var data of RelativeDates.stale) {
+        RelativeDates.update(data, now);
+      }
+      RelativeDates.stale = [];
+      // Reset automatic flush.
+      clearTimeout(RelativeDates.timeout);
+      RelativeDates.timeout = setTimeout(RelativeDates.flush, RelativeDates.INTERVAL);
+    },
+    hover(post) {
+      const { date } = post.info;
+      const now = new Date();
+      const diff = now - date;
+      post.nodes.date.title = RelativeDates.relative(diff, now, date);
+    },
+    // `update()`, when called from `flush()`, updates the elements,
+    // and re-calls `setOwnTimeout()` to re-add `data` to the stale list later.
+    update(data, now = new Date()) {
+      let abbrev, date;
+      const isPost = data instanceof Post;
+      if (isPost) {
+        ({ date } = data.info);
+        abbrev = false;
+      } else {
+        date = new Date(+data.dataset.utc);
+        abbrev = !!data.dataset.abbrev;
+      }
+      const diff = now - date;
+      const relative = RelativeDates.relative(diff, now, date, abbrev);
+      if (isPost) {
+        for (var singlePost of [data].concat(data.clones)) {
+          const node = singlePost.nodes.date;
+          if (Conf.RelativeTime === 'Show') {
+            node.textContent = relative;
+          } else {
+            let full = node.dataset.fullTime;
+            if (!full) {
+              full = node.textContent;
+              node.dataset.fullTime = full;
+            }
+            node.textContent = Conf.RelativeTime === 'Both' ? `${full}, ${relative}` : `${relative}, ${full}`;
+          }
+        }
+      } else {
+        data.firstChild.textContent = relative;
+      }
+      RelativeDates.setOwnTimeout(diff, data);
+    },
+    setOwnTimeout(diff, data) {
+      const delay = diff < MINUTE ?
+        SECOND - ((diff + (SECOND / 2)) % SECOND)
+        : diff < HOUR ?
+          MINUTE - ((diff + (MINUTE / 2)) % MINUTE)
+          : diff < DAY ?
+            HOUR - ((diff + (HOUR / 2)) % HOUR)
+            :
+              DAY - ((diff + (DAY / 2)) % DAY);
+      setTimeout(RelativeDates.markStale, delay, data);
+    },
+    markStale(data) {
+      if (RelativeDates.stale.includes(data)) {
+        return;
+      } // We can call RelativeDates.update() multiple times.
+      if (data instanceof Post && !g.posts.get(data.fullID)) {
+        return;
+      } // collected post.
+      if (data instanceof Element && !doc.contains(data)) {
+        return;
+      } // removed catalog reply.
+      RelativeDates.stale.push(data);
+    }
+  };
+
   const parseArchivePost = (data) => {
     // https://github.com/eksopl/asagi/blob/v0.4.0b74/src/main/java/net/easymodo/asagi/YotsubaAbstract.java#L82-L129
     // https://github.com/FoolCode/FoolFuuka/blob/800bd090835489e7e24371186db6e336f04b85c0/src/Model/Comment.php#L368-L428
@@ -11549,369 +12177,6 @@ svg.icon {
     }
     Main.callbackNodes('Post', [post]);
     return post;
-  };
-
-  var ReplyPruning = {
-    init() {
-      if ((g.VIEW !== 'thread') || !Conf['Reply Pruning']) { return; }
-
-      this.container = $.frag();
-
-      this.summary = $.el('span', {
-        hidden:    true,
-        className: 'summary'
-      }
-      );
-      this.summary.style.cursor = 'pointer';
-      $.on(this.summary, 'click', () => {
-        this.inputs.enabled.checked = !this.inputs.enabled.checked;
-        return $.event('change', null, this.inputs.enabled);
-      });
-
-      const label = UI.checkbox('Prune Replies', 'Show Last', Conf['Prune All Threads']);
-      const el = $.el('span',
-        {title: 'Maximum number of replies to show.'}
-      ,
-        {innerHTML: " <input type=\"number\" name=\"Max Replies\" min=\"0\" step=\"1\" value=\"" + E(Conf["Max Replies"]) + "\" class=\"field\">"});
-      $.prepend(el, label);
-
-      this.inputs = {
-        enabled: label.firstElementChild,
-        replies: el.lastElementChild
-      };
-
-      this.setEnabled.call(this.inputs.enabled);
-      $.on(this.inputs.enabled, 'change', this.setEnabled);
-      $.on(this.inputs.replies, 'change', $.cb.value);
-
-      Header.menu.addEntry({
-        el,
-        order: 190
-      });
-
-      return Callbacks.Thread.push({
-        name: 'Reply Pruning',
-        cb:   this.node
-      });
-    },
-
-    position: 0,
-    hidden: 0,
-    hiddenFiles: 0,
-    total: 0,
-    totalFiles: 0,
-
-    setEnabled() {
-      const other = QuoteThreading.input;
-      if (this.checked && other?.checked) {
-        other.checked = false;
-        $.event('change', null, other);
-      }
-      return ReplyPruning.active = this.checked;
-    },
-
-    showIfHidden(id) {
-      if (ReplyPruning.container && $(`#${id}`, ReplyPruning.container)) {
-        ReplyPruning.inputs.enabled.checked = false;
-        return $.event('change', null, ReplyPruning.inputs.enabled);
-      }
-    },
-
-    node() {
-      let middle;
-      ReplyPruning.thread = this;
-
-      if (this.isSticky) {
-        ReplyPruning.active = (ReplyPruning.inputs.enabled.checked = true);
-        if (QuoteThreading.input) {
-          // Disable Quote Threading for this thread but don't save the setting.
-          Conf['Thread Quotes'] = (QuoteThreading.input.checked = false);
-        }
-      }
-
-      this.posts.forEach(function(post) {
-        if (post.isReply) {
-          ReplyPruning.total++;
-          if (post.file) { return ReplyPruning.totalFiles++; }
-        }
-      });
-
-      // If we're linked to a post that we would hide, don't hide the posts in the first place.
-      if (
-        ReplyPruning.active &&
-        /^#p\d+$/.test(location.hash) &&
-        (1 <= (middle = this.posts.keys.indexOf(location.hash.slice(2))) && middle < 1 + Math.max(ReplyPruning.total - +Conf["Max Replies"], 0))
-      ) {
-        ReplyPruning.active = (ReplyPruning.inputs.enabled.checked = false);
-      }
-
-      $.after(this.OP.nodes.root, ReplyPruning.summary);
-
-      $.on(ReplyPruning.inputs.enabled, 'change', ReplyPruning.update);
-      $.on(ReplyPruning.inputs.replies, 'change', ReplyPruning.update);
-      $.on(d, 'ThreadUpdate', ReplyPruning.updateCount);
-      $.on(d, 'ThreadUpdate', ReplyPruning.update);
-
-      return ReplyPruning.update();
-    },
-
-    updateCount(e) {
-      if (e.detail[404]) { return; }
-      for (var fullID of e.detail.newPosts) {
-        ReplyPruning.total++;
-        if (g.posts.get(fullID).file) { ReplyPruning.totalFiles++; }
-      }
-    },
-
-    update() {
-      let boardTop, node, post;
-      const hidden1 = ReplyPruning.hidden;
-      const hidden2 = ReplyPruning.active ?
-        Math.max(ReplyPruning.total - +Conf["Max Replies"], 0)
-      :
-        0;
-
-      // Record position from bottom of document
-      const oldPos = d.body.clientHeight - window.scrollY;
-
-      const {posts} = ReplyPruning.thread;
-
-      if (ReplyPruning.hidden < hidden2) {
-        while ((ReplyPruning.hidden < hidden2) && (ReplyPruning.position < posts.keys.length)) {
-          post = posts.get(posts.keys[ReplyPruning.position++]);
-          if (post.isReply && !post.isFetchedQuote) {
-            while ((node = ReplyPruning.summary.nextSibling) && (node !== post.nodes.root)) { $.add(ReplyPruning.container, node); }
-            $.add(ReplyPruning.container, post.nodes.root);
-            ReplyPruning.hidden++;
-            if (post.file) { ReplyPruning.hiddenFiles++; }
-          }
-        }
-
-      } else if (ReplyPruning.hidden > hidden2) {
-        const frag = $.frag();
-        while ((ReplyPruning.hidden > hidden2) && (ReplyPruning.position > 0)) {
-          post = posts.get(posts.keys[--ReplyPruning.position]);
-          if (post.isReply && !post.isFetchedQuote) {
-            while ((node = ReplyPruning.container.lastChild) && (node !== post.nodes.root)) { $.prepend(frag, node); }
-            $.prepend(frag, post.nodes.root);
-            ReplyPruning.hidden--;
-            if (post.file) { ReplyPruning.hiddenFiles--; }
-          }
-        }
-        $.after(ReplyPruning.summary, frag);
-        $.event('PostsInserted', null, ReplyPruning.summary.parentNode);
-      }
-
-      ReplyPruning.summary.textContent = ReplyPruning.active ?
-        g.SITE.Build.summaryText('+', ReplyPruning.hidden, ReplyPruning.hiddenFiles)
-      :
-        g.SITE.Build.summaryText('-', ReplyPruning.total, ReplyPruning.totalFiles);
-      ReplyPruning.summary.hidden = (ReplyPruning.total <= +Conf["Max Replies"]);
-
-      // Maintain position in thread when posts are added/removed above
-      if ((hidden1 !== hidden2) && ((boardTop = Header.getTopOf($('.board'))) < 0)) {
-        return window.scrollBy(0, Math.max(d.body.clientHeight - oldPos, window.scrollY + boardTop) - window.scrollY);
-      }
-    }
-  };
-
-  /*
-    <3 aeosynth
-  */
-  var QuoteThreading = {
-    init() {
-      if (!Conf['Quote Threading'] || (g.VIEW !== 'thread')) {
-        return;
-      }
-      this.controls = $.el('label', { innerHTML: "<input id=\"threadingControl\" name=\"Thread Quotes\" type=\"checkbox\"> Threading" });
-      this.threadNewLink = $.el('span', {
-        className: 'brackets-wrap threadnewlink',
-        hidden: true
-      });
-      $.extend(this.threadNewLink, { innerHTML: "<a href=\"javascript:;\">Thread New Posts</a>" });
-      this.input = $('input', this.controls);
-      this.input.checked = Conf['Thread Quotes'];
-      $.on(this.input, 'change', this.setEnabled);
-      $.on(this.input, 'change', this.rethread);
-      $.on(this.threadNewLink.firstElementChild, 'click', this.rethread);
-      $.on(d, '4chanXInitFinished', () => { this.ready = true; });
-      Header.menu.addEntry(this.entry = {
-        el: this.controls,
-        order: 99
-      });
-      Callbacks.Thread.push({
-        name: 'Quote Threading',
-        cb: this.setThread
-      });
-      Callbacks.Post.push({
-        name: 'Quote Threading',
-        cb: this.node
-      });
-    },
-    parent: dict(),
-    children: dict(),
-    inserted: dict(),
-    toggleThreading() {
-      this.setThreadingState(!Conf['Thread Quotes']);
-    },
-    setThreadingState(enabled) {
-      this.input.checked = enabled;
-      this.setEnabled.call(this.input);
-      this.rethread.call(this.input);
-    },
-    setEnabled() {
-      if (this.checked) {
-        $.set('Prune All Threads', false);
-        const other = ReplyPruning.inputs?.enabled;
-        if (other?.checked) {
-          other.checked = false;
-          $.event('change', null, other);
-        }
-      }
-      $.cb.checked.call(this);
-    },
-    setThread() {
-      QuoteThreading.thread = this;
-      $.asap((() => !Conf['Thread Updater'] || $('.navLinksBot > .updatelink')), function () {
-        let navLinksBot;
-        if (navLinksBot = $('.navLinksBot')) {
-          $.add(navLinksBot, [$.tn(' '), QuoteThreading.threadNewLink]);
-        }
-      });
-    },
-    node() {
-      let parent;
-      if (this.isFetchedQuote || this.isClone || !this.isReply) {
-        return;
-      }
-      const parents = new Set();
-      let lastParent = null;
-      for (var quote of this.quotes) {
-        if ((parent = g.posts.get(quote))) {
-          if (!parent.isFetchedQuote && parent.isReply && (parent.ID < this.ID)) {
-            parents.add(parent.ID);
-            if (!lastParent || (parent.ID > lastParent.ID)) {
-              lastParent = parent;
-            }
-          }
-        }
-      }
-      if (!lastParent)
-        return;
-      let ancestor = lastParent;
-      while ((ancestor = QuoteThreading.parent[ancestor.fullID])) {
-        parents.delete(ancestor.ID);
-      }
-      if (parents.size === 1) {
-        QuoteThreading.parent[this.fullID] = lastParent;
-      }
-    },
-    descendants(post) {
-      let children;
-      let posts = [post];
-      if (children = QuoteThreading.children[post.fullID]) {
-        for (var child of children) {
-          posts = posts.concat(QuoteThreading.descendants(child));
-        }
-      }
-      return posts;
-    },
-    insert(post) {
-      let parent, x;
-      if (!(Conf['Thread Quotes'] &&
-        (parent = QuoteThreading.parent[post.fullID]) &&
-        !QuoteThreading.inserted[post.fullID])) {
-        return false;
-      }
-      const descendants = QuoteThreading.descendants(post);
-      if (!Unread.posts.has(parent.ID)) {
-        if ((function () { for (var x of descendants) {
-          if (Unread.posts.has(x.ID)) {
-            return true;
-          }
-        } })()) {
-          QuoteThreading.threadNewLink.hidden = false;
-          return false;
-        }
-      }
-      const { order } = Unread;
-      const children = (QuoteThreading.children[parent.fullID] || (QuoteThreading.children[parent.fullID] = []));
-      const threadContainer = parent.nodes.threadContainer || $.el('div', { className: 'threadContainer' });
-      const nodes = [post.nodes.root];
-      if (post.nodes.threadContainer) {
-        nodes.push(post.nodes.threadContainer);
-      }
-      let i = children.length;
-      for (let j = children.length - 1; j >= 0; j--) {
-        var child = children[j];
-        if (child.ID >= post.ID) {
-          i--;
-        }
-      }
-      if (i !== children.length) {
-        const next = children[i];
-        for (x of descendants) {
-          order.before(order[next.ID], order[x.ID]);
-        }
-        children.splice(i, 0, post);
-        $.before(next.nodes.root, nodes);
-      } else {
-        let prev2;
-        let prev = parent;
-        while ((prev2 = QuoteThreading.children[prev.fullID]) && prev2.length) {
-          prev = prev2[prev2.length - 1];
-        }
-        for (let k = descendants.length - 1; k >= 0; k--) {
-          x = descendants[k];
-          order.after(order[prev.ID], order[x.ID]);
-        }
-        children.push(post);
-        $.add(threadContainer, nodes);
-      }
-      QuoteThreading.inserted[post.fullID] = true;
-      if (!parent.nodes.threadContainer) {
-        parent.nodes.threadContainer = threadContainer;
-        $.addClass(parent.nodes.root, 'threadOP');
-        $.after(parent.nodes.root, threadContainer);
-      }
-      return true;
-    },
-    rethread() {
-      if (!QuoteThreading.ready) {
-        return;
-      }
-      const { thread } = QuoteThreading;
-      const { posts } = thread;
-      QuoteThreading.threadNewLink.hidden = true;
-      if (Conf['Thread Quotes']) {
-        posts.forEach(QuoteThreading.insert);
-      } else {
-        const nodes = [];
-        Unread.order = new RandomAccessList();
-        QuoteThreading.inserted = dict();
-        posts.forEach(function (post) {
-          if (post.isFetchedQuote) {
-            return;
-          }
-          Unread.order.push(post);
-          if (post.isReply) {
-            nodes.push(post.nodes.root);
-          }
-          if (QuoteThreading.children[post.fullID]) {
-            delete QuoteThreading.children[post.fullID];
-            $.rmClass(post.nodes.root, 'threadOP');
-            $.rm(post.nodes.threadContainer);
-            delete post.nodes.threadContainer;
-          }
-        });
-        $.add(thread.nodes.root, nodes);
-      }
-      Unread.position = Unread.order.first;
-      Unread.updatePosition();
-      Unread.setLine(true);
-      Unread.read();
-      Unread.update();
-    },
   };
 
   const RestoreDeletedFromArchive = {
@@ -21297,6 +21562,9 @@ Enable it on boards.${location.hostname.split('.')[1]}.org in your browser's pri
         set('XEmbedder', data['Embed Tweets inline with fxTwitter'] ? 'fxt' : 'tf');
         set('fxtMaxReplies', data['Resolve Tweet Replies'] ? (data['Resolve all Tweet Replies'] ? 100 : 1) : 0);
         set('fxtLang', data['Translate non-English Tweets to English'] ? 'en' : '');
+      }
+      if (data['Use 4chan XT Catalog'] != null && data[`Use ${meta.name} Catalog`] == null) {
+        set(`Use ${meta.name} Catalog`, data['Use 4chan XT Catalog']);
       }
       return changes;
     },

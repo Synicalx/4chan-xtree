@@ -1,7 +1,14 @@
-## 4chan XT changelog
+## 4chan xtree changelog
 
-4chan XT uses a different user script namespace than 4chan X, so to migrate you need to export settings from 4chan X,
-and import them in XT.
+4chan xtree uses a different user script namespace than 4chan XT / 4chan X, so to migrate you need to export settings from 4chan XT / 4chan X,
+and import them in xtree.
+
+### 2.25.0 (2026-11-14)
+
+- Initial release of **4chan xtree** (forked from 4chan XT).
+- Added multi-branch quote threading: replies quoting multiple branches are cloned so they appear under each quoted parent branch.
+- Added subtree collapsing: collapsing a post in tree view collapses its entire child subtree into a one-line stub with a descendant reply count (`(+N replies)`), plus clickable vertical branch lines to collapse branches directly.
+- Restored `@updateURL` and `@downloadURL` pointing to `Synicalx/4chan-xtree` releases and added GitHub Actions CI/Release workflows.
 
 ### 2.24.2 (2025-12-23 🎅🏻)
 
