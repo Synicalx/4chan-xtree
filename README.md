@@ -1,39 +1,15 @@
-# 4chan XT is dead
-
-I stopped using 4chan since the hack. I now browse alt chans that actually care about their users, and don't need an 
-userscript fighting their shitty design.
-
-<details>
-<summary>Old readme</summary>
+# 4chan XT is dead, Long live xtree
 
 4chan XT is a script that adds various features to anonymous imageboards. It was originally developed for 4chan but has
-no affiliation with it.
+no affiliation with it. 4chan *xtree* extends the original XT by adding option tree-style thread viewing.
 
 4chan XT was originally forked from [4chan X](https://github.com/ccd0/4chan-x) for
 [this PR](https://github.com/ccd0/4chan-x/pull/3341), It is a migration of 4chan X from coffeescript to
-TypeScript/JavaScript. It is named XT both as a continuation of eXTended, and a T for TypeScript. The goals of this
-project is to first get a working bundle from js/ts files, and then gradually convert js files to ts and add types as
-needed.
+TypeScript/JavaScript. It is named XT both as a continuation of eXTended, and a T for TypeScript. This version, *xtree* is forked from [4chan xt](https://github.com/TuxedoTako/4chan-xt).
 
 New features since the fork include:
 
-- Fetching the thread from an external archive and inserting deleted posts
-- Basic audio posts support
-- Automatically converting unsupported image files to png
-- Automatically JPG'ing image files above the size limit
-- Having both relative time and a timestamp on a post at the same time
-- Counting poster ID's as a replacement of the deleted IP counter
-- Hiding all posts from a poster ID in a thread
-- A manifest v3 version for chromium browsers dropping support for v2
-- A button to un-randomize a filename in the quick reply
-- Showing the reason a post was filtered in the stub
-- Marking replies to your post on the scroll bar
-
-4chan X was previously developed by [ccd0](https://github.com/ccd0/4chan-x),
-[aeosynth](https://github.com/aeosynth/4chan-x), [Mayhem](https://github.com/MayhemYDG/4chan-x),
-[ihavenoface](https://github.com/ihavenoface/4chan-x), [Zixaphir](https://github.com/zixaphir/appchan-x),
-[Seaweed](https://github.com/seaweedchan/4chan-x), and [Spittie](https://github.com/Spittie/4chan-x), with contributions
-from many others.
+- Tree style thread viewing
 
 ## Please note
 **Uninstalling**: 4chan XT disables the native extension, so if you uninstall 4chan XT, you'll need to re-enable it.
@@ -63,7 +39,7 @@ To run an user script, you need an user script manager like Violentmonkey
 [Edge](https://microsoftedge.microsoft.com/addons/detail/iikmkjmpaadaobahmlepeloendndfphd),
 [Safari](https://apps.apple.com/app/tampermonkey/id6738342400)).
 
-This fork is distributed through [GitHub releases](https://github.com/TuxedoTako/4chan-xt/releases) and [Greasy Fork](https://greasyfork.org/scripts/489508-4chan-xt).
+This fork will be distributed through github releases.
 There are known issues with updating user scripts through GitHub: [#34](https://github.com/TuxedoTako/4chan-xt/issues/34)
 [violentmonkey#1673](https://github.com/violentmonkey/violentmonkey/issues/1673), but Greasy Fork doesn't allow the
 minified version. Automatic updates are supported for the user script version, but not the Chrome extension.
@@ -80,39 +56,7 @@ The simplest build is as easy as `npm install` `npm run build`, but there are so
 - `-test` Include tests in build.
 
 ## Troubleshooting
-If you encounter a bug, try the steps [here](https://github.com/TuxedoTako/4chan-xt/blob/project-XT/CONTRIBUTING.md#reporting-bugs),
-then report it to the [issue tracker](https://github.com/TuxedoTako/4chan-xt/issues?q=is%3Aopen+sort%3Aupdated-desc).
-If the bug seems to be caused by a script update, you can install a old version from the
-[GitHub releases](https://github.com/TuxedoTako/4chan-xt/releases) or from
-[Greasy Fork](https://greasyfork.org/scripts/489508-4chan-xt/versions).
-
-## More information
-- [Changelog](https://github.com/TuxedoTako/4chan-xt/blob/project-XT/CHANGELOG.md)
-- [Frequently Asked Questions for this fork](https://github.com/TuxedoTako/4chan-xt/wiki/Frequently-Asked-Questions)
-- [Frequently Asked Questions for upstream, most should still apply](https://github.com/ccd0/4chan-x/wiki/Frequently-Asked-Questions)
-- [Report Bugs](https://github.com/TuxedoTako/4chan-xt/issues?q=is%3Aopen+sort%3Aupdated-desc)
-- [Contributing](https://github.com/TuxedoTako/4chan-xt/blob/project-XT/CONTRIBUTING.md)
-
-### TODO
-
-<details>
-<summary>Click to expand</summary>
-
-- find alternative for `<% if (`
-  - [x] made html templates jsx/txt functions
-    - this uses the typescript compiler to compile the jsx
-    - render code is in [src/globals/jsx.ts](./src/globals/jsx.ts)
-  - [x] binary files are included as base64 in the bundle step, they do need explicit imports
-  - [x] `<% if (readJSON('/.tests_enabled')) { %>`
-    - replaced by `// #region tests_enabled` `// #endregion`
-- build script
-  - [x] userscript
-  - [ ] .crx extension
-    - [x] crx directory that can be loaded as an unpacked extension is created
-- [x] port updates made to 4chan-X made since this was forked
-- [ ] Clean up circular dependencies
-
-</details>
+If you encounter a bug, that's a real shame.
 
 ### Other notes about this fork
 
