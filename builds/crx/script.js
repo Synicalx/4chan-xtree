@@ -4533,6 +4533,9 @@ textarea.copy-text-element {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+:root.thread-quotes .quotelink.tree-parent-quote {
+  font-weight: bold;
+}
 .stub-id {
   opacity: 0.8;
 }
@@ -11210,6 +11213,10 @@ svg.icon {
         QuoteThreading.children[parentInstance.fullID] = children;
       }
       childInstance.treeParent = parentInstance;
+      for (const quotelink of childInstance.nodes.quotelinks) {
+        const { boardID, postID } = Get.postDataFromLink(quotelink);
+        quotelink.classList.toggle('tree-parent-quote', postID === parentInstance.ID && boardID === parentInstance.board.ID);
+      }
       let threadContainer = parentInstance.nodes.threadContainer;
       if (!threadContainer) {
         threadContainer = $.el('div', { className: 'threadContainer' });
@@ -11376,6 +11383,9 @@ svg.icon {
           }
           delete post.treeChildren;
           delete post.treeParent;
+          for (const quotelink of post.nodes.quotelinks) {
+            $.rmClass(quotelink, 'tree-parent-quote');
+          }
           if (QuoteThreading.children[post.fullID]) {
             delete QuoteThreading.children[post.fullID];
           }

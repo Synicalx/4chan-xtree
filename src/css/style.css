@@ -1257,6 +1257,9 @@ textarea.copy-text-element {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+:root.thread-quotes .quotelink.tree-parent-quote {
+  font-weight: bold;
+}
 .stub-id {
   opacity: 0.8;
 }

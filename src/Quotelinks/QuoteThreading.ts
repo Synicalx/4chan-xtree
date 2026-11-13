@@ -4,6 +4,7 @@ import type { PostClone } from "../classes/Post";
 import RandomAccessList from "../classes/RandomAccessList";
 import type Thread from "../classes/Thread";
 import PostHiding from "../Filtering/PostHiding";
+import Get from "../General/Get";
 import Header from "../General/Header";
 import { Conf, d, doc, g } from "../globals/globals";
 import Main from "../main/Main";
@@ -248,6 +249,14 @@ var QuoteThreading = {
     }
     childInstance.treeParent = parentInstance;
 
+    for (const quotelink of childInstance.nodes.quotelinks) {
+      const { boardID, postID } = Get.postDataFromLink(quotelink);
+      quotelink.classList.toggle(
+        'tree-parent-quote',
+        postID === parentInstance.ID && boardID === parentInstance.board.ID
+      );
+    }
+
     let threadContainer = parentInstance.nodes.threadContainer;
     if (!threadContainer) {
       threadContainer = $.el('div', { className: 'threadContainer' });
@@ -413,6 +422,9 @@ var QuoteThreading = {
         if (post.isReply) { nodes.push(post.nodes.root); }
         delete post.treeChildren;
         delete post.treeParent;
+        for (const quotelink of post.nodes.quotelinks) {
+          $.rmClass(quotelink, 'tree-parent-quote');
+        }
         if (QuoteThreading.children[post.fullID]) {
           delete QuoteThreading.children[post.fullID];
         }
